@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块集成测试 - 宝可梦RPG</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; background: #1a1a2e; color: #fff; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; color: #ffd700; margin-bottom: 30px; }
+        .test-section { background: #16213e; border: 2px solid #0f3460; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .test-section h2 { color: #e94560; margin-bottom: 15px; }
+        .test-item { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #0f3460; border-radius: 5px; margin-bottom: 8px; }
+        .test-item.pass { border-left: 4px solid #22c55e; }
+        .test-item.fail { border-left: 4px solid #ef4444; }
+        .status { font-weight: bold; }
+        .status.pass { color: #22c55e; }
+        .status.fail { color: #ef4444; }
+        button { background: #3b82f6; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; margin: 10px; }
+        button:hover { background: #2563eb; }
+        .buttons { text-align: center; margin: 20px 0; }
+        #console { background: #000; color: #00ff00; font-family: monospace; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; margin-top: 20px; }
+        .summary { text-align: center; font-size: 24px; padding: 20px; margin: 20px 0; border-radius: 10px; }
+        .summary.all-pass { background: #22c55e; }
+        .summary.has-fail { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 模块集成测试</h1>
+
+        <div class="buttons">
+            <button id="runAll">运行所有测试</button>
+            <button onclick="window.location.href='index.html'">打开游戏</button>
+        </div>
+
+        <div id="test-results"></div>
+        <div id="console"></div>
+    </div>
+
+    <script>
+        // 测试结果收集
+        const testResults = [];
+        let passCount = 0;
+        let failCount = 0;
+
+        // 控制台日志捕获
+        const originalLog = console.log;
+        const originalError = console.error;
+        const consoleOutput = document.getElementById('console');
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            appendConsole('LOG', args.join(' '));
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            appendConsole('ERROR', args.join(' '), '#ff6b6b');
+        };
+
+        function appendConsole(type, message, color = '#00ff00') {
+            const line = document.createElement('div');
+            line.style.color = color;
+            line.textContent = `[${type}] ${message}`;
+            consoleOutput.appendChild(line);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // 测试工具函数
+        function test(name, fn) {
+            try {
+                fn();
+                testResults.push({ name, pass: true });
+                passCount++;
+                console.log(`✅ PASS: ${name}`);
+            } catch (e) {
+                testResults.push({ name, pass: false, error: e.message });
+                failCount++;
+                console.error(`❌ FAIL: ${name} - ${e.message}`);
+            }
+        }
+
+        function assert(condition, message) {
+            if (!condition) throw new Error(message || 'Assertion failed');
+        }
+
+        // 动态加载脚本
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error(`Failed to load ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        // 运行所有测试
+        async function runAllTests() {
+            testResults.length = 0;
+            passCount = 0;
+            failCount = 0;
+            consoleOutput.innerHTML = '';
+
+            console.log('开始加载模块...');
+
+            try {
+                // 按依赖顺序加载脚本
+                await loadScript('js/core/EventBus.js');
+                await loadScript('js/core/data/GameData.js');
+                await loadScript('js/core/data/MonsterData.js');
+                await loadScript('js/core/data/SkillData.js');
+                await loadScript('js/core/data/ItemData.js');
+                await loadScript('js/core/data/MapData.js');
+                await loadScript('js/core/GameStateMachine.js');
+                await loadScript('js/core/SaveManager.js');
+                await loadScript('js/battle/DamageCalculator.js');
+                await loadScript('js/battle/SkillExecutor.js');
+                await loadScript('js/battle/BattleSystem.js');
+                await loadScript('js/dialog/DialogData.js');
+                await loadScript('js/dialog/ScriptParser.js');
+                await loadScript('js/dialog/QuestManager.js');
+                await loadScript('js/dialog/DialogSystem.js');
+                await loadScript('js/map/MapRenderer.js');
+                await loadScript('js/map/MapStateMachine.js');
+                await loadScript('js/map/PlayerController.js');
+                await loadScript('js/map/SceneManager.js');
+                await loadScript('js/map/index.js');
+                await loadScript('js/shop/InventoryManager.js');
+                await loadScript('js/shop/ShopSystem.js');
+                await loadScript('js/shop/ShopUI.js');
+                await loadScript('js/ui/AudioManager.js');
+                await loadScript('js/ui/UIManager.js');
+                await loadScript('js/ui/BattleUI.js');
+                await loadScript('js/ui/MenuUI.js');
+
+                console.log('所有模块加载完成！');
+
+                // ========== 开始测试 ==========
+
+                test('EventBus 应该存在', () => {
+                    assert(typeof eventBus !== 'undefined', 'eventBus not defined');
+                    assert(typeof eventBus.on === 'function', 'eventBus.on not a function');
+                    assert(typeof eventBus.emit === 'function', 'eventBus.emit not a function');
+                });
+
+                test('GameEvents 应该定义', () => {
+                    assert(typeof GameEvents !== 'undefined', 'GameEvents not defined');
+                    assert(GameEvents.STATE_CHANGE, 'STATE_CHANGE not defined');
+                });
+
+                test('GameState 应该定义', () => {
+                    assert(typeof GameState !== 'undefined', 'GameState not defined');
+                    assert(GameState.TITLE, 'TITLE not defined');
+                    assert(GameState.MAP, 'MAP not defined');
+                    assert(GameState.BATTLE, 'BATTLE not defined');
+                });
+
+                test('createInitialGameState 应该返回有效状态', () => {
+                    const state = createInitialGameState();
+                    assert(state, 'state is null');
+                    assert(state.player, 'player is null');
+                    assert(state.player.party.length === 1, 'should have 1 starter monster');
+                });
+
+                test('MonsterTemplates 应该有数据', () => {
+                    assert(typeof MonsterTemplates !== 'undefined', 'MonsterTemplates not defined');
+                    assert(MonsterTemplates.fire_dragon, 'fire_dragon not found');
+                    assert(MonsterTemplates.water_turtle, 'water_turtle not found');
+                });
+
+                test('ElementType 应该定义', () => {
+                    assert(typeof ElementType !== 'undefined', 'ElementType not defined');
+                    assert(ElementType.FIRE === 'fire', 'FIRE type wrong');
+                });
+
+                test('SkillTemplates 应该有数据', () => {
+                    assert(typeof SkillTemplates !== 'undefined', 'SkillTemplates not defined');
+                    assert(SkillTemplates.fire_blast, 'fire_blast not found');
+                });
+
+                test('SkillCategory 应该定义', () => {
+                    assert(typeof SkillCategory !== 'undefined', 'SkillCategory not defined');
+                });
+
+                test('StatusEffect 应该定义', () => {
+                    assert(typeof StatusEffect !== 'undefined', 'StatusEffect not defined');
+                });
+
+                test('ItemTemplates 应该有数据', () => {
+                    assert(typeof ItemTemplates !== 'undefined', 'ItemTemplates not defined');
+                    assert(ItemTemplates.potion, 'potion not found');
+                    assert(ItemTemplates.pokeball, 'pokeball not found');
+                });
+
+                test('getItemTemplate 应该返回物品', () => {
+                    const item = getItemTemplate('potion');
+                    assert(item, 'potion not found');
+                    assert(item.id === 'potion', 'wrong item');
+                });
+
+                test('getRarityName 应该返回名称', () => {
+                    assert(getRarityName('common') === '普通', 'common wrong');
+                    assert(getRarityName('rare') === '稀有', 'rare wrong');
+                });
+
+                test('ShopData 应该有数据', () => {
+                    assert(typeof ShopData !== 'undefined', 'ShopData not defined');
+                    assert(ShopData.shop_village_01, 'shop_village_01 not found');
+                });
+
+                test('getShopData 应该返回商店', () => {
+                    const shop = getShopData('shop_village_01');
+                    assert(shop, 'shop not found');
+                    assert(shop.inventory.length > 0, 'shop inventory empty');
+                });
+
+                test('MapData 应该有数据', () => {
+                    assert(typeof MapData !== 'undefined', 'MapData not defined');
+                    assert(typeof MapTemplates !== 'undefined', 'MapTemplates not defined');
+                    assert(MapTemplates.town_01, 'town_01 not found');
+                });
+
+                test('gameStateMachine 应该存在', () => {
+                    assert(typeof gameStateMachine !== 'undefined', 'gameStateMachine not defined');
+                    assert(typeof gameStateMachine.init === 'function', 'init not a function');
+                    assert(typeof gameStateMachine.getGameState === 'function', 'getGameState not a function');
+                });
+
+                test('saveManager 应该存在', () => {
+                    assert(typeof saveManager !== 'undefined', 'saveManager not defined');
+                    assert(typeof saveManager.saveGame === 'function', 'saveGame not a function');
+                });
+
+                test('damageCalculator 应该存在', () => {
+                    assert(typeof damageCalculator !== 'undefined', 'damageCalculator not defined');
+                    assert(typeof damageCalculator.calculateDamage === 'function', 'calculateDamage not a function');
+                });
+
+                test('skillExecutor 应该存在', () => {
+                    assert(typeof skillExecutor !== 'undefined', 'skillExecutor not defined');
+                    assert(typeof skillExecutor.executeSkill === 'function', 'executeSkill not a function');
+                });
+
+                test('battleSystem 应该存在', () => {
+                    assert(typeof battleSystem !== 'undefined', 'battleSystem not defined');
+                    assert(typeof battleSystem.startWildBattle === 'function', 'startWildBattle not a function');
+                });
+
+                test('BattleState 应该定义', () => {
+                    assert(typeof BattleState !== 'undefined', 'BattleState not defined');
+                });
+
+                test('dialogSystem 应该存在', () => {
+                    assert(typeof dialogSystem !== 'undefined', 'dialogSystem not defined');
+                });
+
+                test('questManager 应该存在', () => {
+                    assert(typeof questManager !== 'undefined', 'questManager not defined');
+                });
+
+                test('scriptParser 应该存在', () => {
+                    assert(typeof scriptParser !== 'undefined', 'scriptParser not defined');
+                });
+
+                test('DialogData 应该有数据', () => {
+                    assert(typeof DialogData !== 'undefined', 'DialogData not defined');
+                    assert(typeof DialogScripts !== 'undefined', 'DialogScripts not defined');
+                });
+
+                test('mapSystem 应该存在', () => {
+                    assert(typeof mapSystem !== 'undefined', 'mapSystem not defined');
+                    assert(typeof mapSystem.init === 'function', 'init not a function');
+                });
+
+                test('mapRenderer 应该存在', () => {
+                    assert(typeof mapRenderer !== 'undefined', 'mapRenderer not defined');
+                });
+
+                test('playerController 应该存在', () => {
+                    assert(typeof playerController !== 'undefined', 'playerController not defined');
+                });
+
+                test('mapStateMachine 应该存在', () => {
+                    assert(typeof mapStateMachine !== 'undefined', 'mapStateMachine not defined');
+                });
+
+                test('sceneManager 应该存在', () => {
+                    assert(typeof sceneManager !== 'undefined', 'sceneManager not defined');
+                });
+
+                test('inventoryManager 应该存在', () => {
+                    assert(typeof inventoryManager !== 'undefined', 'inventoryManager not defined');
+                    assert(typeof inventoryManager.init === 'function', 'init not a function');
+                });
+
+                test('shopSystem 应该存在', () => {
+                    assert(typeof shopSystem !== 'undefined', 'shopSystem not defined');
+                });
+
+                test('shopUI 应该存在', () => {
+                    assert(typeof shopUI !== 'undefined', 'shopUI not defined');
+                });
+
+                test('audioManager 应该存在', () => {
+                    assert(typeof audioManager !== 'undefined', 'audioManager not defined');
+                });
+
+                test('SoundID 应该定义', () => {
+                    assert(typeof SoundID !== 'undefined', 'SoundID not defined');
+                });
+
+                test('uiManager 应该存在', () => {
+                    assert(typeof uiManager !== 'undefined', 'uiManager not defined');
+                });
+
+                test('UIColors 应该定义', () => {
+                    assert(typeof UIColors !== 'undefined', 'UIColors not defined');
+                });
+
+                test('battleUI 应该存在', () => {
+                    assert(typeof battleUI !== 'undefined', 'battleUI not defined');
+                });
+
+                test('BattleUIState 应该定义', () => {
+                    assert(typeof BattleUIState !== 'undefined', 'BattleUIState not defined');
+                });
+
+                test('menuUI 应该存在', () => {
+                    assert(typeof menuUI !== 'undefined', 'menuUI not defined');
+                });
+
+                test('gameStateMachine 初始化应该工作', () => {
+                    const initialState = createInitialGameState();
+                    gameStateMachine.init(initialState);
+                    const state = gameStateMachine.getGameState();
+                    assert(state, 'state is null after init');
+                    assert(state.currentState === GameState.TITLE, 'should be in TITLE state');
+                });
+
+                test('inventoryManager 初始化应该工作', () => {
+                    inventoryManager.init();
+                    const items = inventoryManager.getItems();
+                    assert(Array.isArray(items), 'items should be array');
+                });
+
+                test('EventBus 事件发送接收应该工作', () => {
+                    let received = false;
+                    const testData = { value: 42 };
+                    eventBus.on('test:event', (data) => {
+                        received = data;
+                    });
+                    eventBus.emit('test:event', testData);
+                    assert(received && received.value === 42, 'event not received');
+                });
+
+                test('damageCalculator 计算伤害应该工作', () => {
+                    const attacker = { level: 5, type: 'fire', stats: { atk: 85, spAtk: 90 } };
+                    const defender = { type: 'grass', stats: { def: 60, spDef: 50 } };
+                    const skill = SkillTemplates.fire_blast;
+                    const result = damageCalculator.calculateDamage(attacker, defender, skill);
+                    assert(result !== null, 'result is null');
+                    assert(typeof result.damage === 'number', 'damage not a number');
+                });
+
+                // ========== 测试结束 ==========
+
+            } catch (e) {
+                console.error('测试执行失败: ' + e.message);
+            }
+
+            renderResults();
+        }
+
+        function renderResults() {
+            const container = document.getElementById('test-results');
+
+            let html = `
+                <div class="summary ${failCount === 0 ? 'all-pass' : 'has-fail'}">
+                    ${failCount === 0 ? '🎉 所有测试通过!' : `⚠️ ${failCount} 个测试失败`}
+                    (${passCount} 通过, ${failCount} 失败)
+                </div>
+            `;
+
+            const categories = {
+                '核心架构': ['EventBus', 'GameEvents', 'GameState', 'createInitialGameState', 'gameStateMachine', 'saveManager'],
+                '数据定义': ['MonsterTemplates', 'ElementType', 'SkillTemplates', 'SkillCategory', 'StatusEffect', 'ItemTemplates', 'getItemTemplate', 'getRarityName', 'ShopData', 'getShopData', 'MapData'],
+                '战斗系统': ['BattleState', 'battleSystem', 'damageCalculator', 'skillExecutor', 'damageCalculator 计算伤害应该工作'],
+                '对话系统': ['dialogSystem', 'questManager', 'scriptParser', 'DialogData'],
+                '地图系统': ['mapSystem', 'mapRenderer', 'playerController', 'mapStateMachine', 'sceneManager'],
+                '商店系统': ['inventoryManager', 'shopSystem', 'shopUI'],
+                'UI音效': ['audioManager', 'SoundID', 'uiManager', 'UIColors', 'battleUI', 'BattleUIState', 'menuUI'],
+                '集成测试': ['gameStateMachine 初始化应该工作', 'inventoryManager 初始化应该工作', 'EventBus 事件发送接收应该工作']
+            };
+
+            for (const [category, testNames] of Object.entries(categories)) {
+                const categoryTests = testResults.filter(t => testNames.some(n => t.name.includes(n)));
+                if (categoryTests.length === 0) continue;
+
+                const categoryPass = categoryTests.filter(t => t.pass).length;
+                const categoryFail = categoryTests.filter(t => !t.pass).length;
+
+                html += `
+                    <div class="test-section">
+                        <h2>${category} (${categoryPass}/${categoryTests.length})</h2>
+                        ${categoryTests.map(t => `
+                            <div class="test-item ${t.pass ? 'pass' : 'fail'}">
+                                <span>${t.name}</span>
+                                <span class="status ${t.pass ? 'pass' : 'fail'}">
+                                    ${t.pass ? '✓ PASS' : '✗ FAIL'}
+                                </span>
+                            </div>
+                            ${t.error ? `<div style="color:#ef4444;padding:5px 10px;">${t.error}</div>` : ''}
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // 绑定按钮
+        document.getElementById('runAll').addEventListener('click', runAllTests);
+
+        console.log('测试页面加载完成，点击"运行所有测试"开始');
+    </script>
+</body>
+</html>

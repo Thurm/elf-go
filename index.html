@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>精灵冒险</title>
+    <link rel="stylesheet" href="css/style.css?v=45">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="ui-layer"></div>
+    </div>
+    <!-- 内联的对话框数据 - 确保这些变量在其他脚本加载之前就已定义 -->
+    <script>
+        console.log('[DEBUG] 正在定义对话框变量（内联）');
+
+        // 对话节点集合
+        const inlineDialogNodes = {
+            // ========== 新手村NPC对话 ==========
+            'welcome': {
+                id: 'welcome',
+                npcId: 'npc_01',
+                lines: [
+                    { speaker: '村民', text: '欢迎来到新手村！' },
+                    { speaker: '村民', text: '这里是你冒险的起点。' },
+                    { speaker: '村民', text: '先去拜访一下村长吧，他在北边的房子里。' }
+                ]
+            },
+            'shop_greet': {
+                id: 'shop_greet',
+                npcId: 'npc_shop',
+                lines: [
+                    { speaker: '店员', text: '欢迎光临！' },
+                    { speaker: '店员', text: '需要买点什么吗？' }
+                ],
+                onComplete: {
+                    type: 'open_shop',
+                    shopId: 'shop_village_01'
+                }
+            }
+        };
+
+        // NPC 默认对话映射
+        window.NPCDialogMap = {
+            'npc_01': ['welcome'],
+            'npc_shop': ['shop_greet'],
+            'npc_mayor': ['mayor_give_starter']
+        };
+
+        window.QuestTemplates = {};
+        // 合并已有对话（避免覆盖 DialogData.js 中的完整节点）
+        // MapData.js 加载后会自动合并 DialogTemplates
+        window.DialogNodes = { ...(window.DialogNodes || {}), ...inlineDialogNodes };
+        window.DialogData = window.DialogNodes;
+
+        console.log('[DEBUG] 对话框变量（内联）定义完成');
+        console.log('[DEBUG] window.DialogNodes:', window.DialogNodes);
+        console.log('[DEBUG] window.NPCDialogMap:', window.NPCDialogMap);
+    </script>
+    <!-- 核心架构 -->
+    <script src="js/core/EventBus.js?v=45"></script>
+    <script src="js/core/data/GameData.js?v=45"></script>
+    <script src="js/core/data/MonsterData.js?v=45"></script>
+    <script src="js/core/data/SkillData.js?v=45"></script>
+    <script src="js/core/data/ItemData.js?v=45"></script>
+    <script src="js/core/data/MapData.js?v=45"></script>
+    <script src="js/core/GameStateMachine.js?v=45"></script>
+    <script src="js/core/SaveManager.js?v=45"></script>
+    <!-- 战斗系统 -->
+    <script src="js/battle/DamageCalculator.js?v=45"></script>
+    <script src="js/battle/SkillExecutor.js?v=45"></script>
+    <script src="js/battle/BattleSystem.js?v=45"></script>
+    <!-- 对话系统 -->
+    <script src="js/dialog/DialogData.js?v=45"></script>
+    <script src="js/dialog/ScriptParser.js?v=45"></script>
+    <script src="js/dialog/QuestManager.js?v=45"></script>
+    <script src="js/dialog/DialogSystem.js?v=45"></script>
+    <!-- 地图系统 -->
+    <script src="js/map/MapRenderer.js?v=45"></script>
+    <script src="js/map/MapStateMachine.js?v=45"></script>
+    <script src="js/map/PlayerController.js?v=45"></script>
+    <script src="js/map/SceneManager.js?v=45"></script>
+    <script src="js/map/index.js?v=45"></script>
+    <!-- UI 音效系统 - 提前加载以便其他模块使用 SoundID -->
+    <script src="js/ui/AudioManager.js?v=45"></script>
+    <!-- 商店系统 -->
+    <script src="js/shop/ShopSystem.js?v=45"></script>
+    <script src="js/shop/InventoryManager.js?v=45"></script>
+    <script src="js/shop/ShopUI.js?v=45"></script>
+    <!-- UI 系统 -->
+    <script src="js/ui/UIManager.js?v=45"></script>
+    <script src="js/ui/BattleUI.js?v=45"></script>
+    <script src="js/ui/MenuUI.js?v=45"></script>
+    <!-- 调试代码 -->
+    <script>
+        setTimeout(() => {
+            console.log('[DEBUG] ==== Window variables ====');
+            console.log('[DEBUG] DialogNodes:', window.DialogNodes);
+            console.log('[DEBUG] DialogNodes.welcome:', window.DialogNodes?.welcome);
+            console.log('[DEBUG] NPCDialogMap:', window.NPCDialogMap);
+            console.log('[DEBUG] NPCDialogMap.npc_01:', window.NPCDialogMap?.['npc_01']);
+            console.log('[DEBUG] DialogData:', window.DialogData);
+            console.log('[DEBUG] =========================');
+        }, 3000);
+    </script>
+    <!-- 主入口 -->
+    <script src="js/main.js?v=45"></script>
+</body>
+</html>

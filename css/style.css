@@ -1,0 +1,886 @@
+/**
+ * 宝可梦风格 RPG - 复古未来主义霓虹像素风
+ * Retro-futuristic Neon Pixel Aesthetic
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap');
+
+:root {
+    /* 霓虹主色调 */
+    --neon-pink: #ff2a6d;
+    --neon-cyan: #05d9e8;
+    --neon-purple: #d300c5;
+    --neon-yellow: #f9f002;
+    --neon-green: #39ff14;
+    --neon-orange: #ff6b35;
+
+    /* 复古未来主义色系 */
+    --deep-space: #0d0221;
+    --cosmic-purple: #2d1b4e;
+    --void-black: #0a0a0f;
+    --starlight: #f0f0ff;
+    --electric-blue: #1b98e0;
+
+    /* 像素风格阴影 */
+    --pixel-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+    --neon-glow-pink: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 40px var(--neon-pink);
+    --neon-glow-cyan: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan), 0 0 40px var(--neon-cyan);
+    --neon-glow-purple: 0 0 10px var(--neon-purple), 0 0 20px var(--neon-purple), 0 0 40px var(--neon-purple);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 50%, #0a1a2e 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: var(--starlight);
+    overflow: hidden;
+    position: relative;
+}
+
+/* 动态背景 - 扫描线效果 */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 9999;
+    animation: scanlines 0.1s linear infinite;
+}
+
+@keyframes scanlines {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(4px); }
+}
+
+/* 动态背景 - 浮动粒子 */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image:
+        radial-gradient(2px 2px at 20px 30px, var(--neon-cyan), transparent),
+        radial-gradient(2px 2px at 40px 70px, var(--neon-pink), transparent),
+        radial-gradient(1px 1px at 90px 40px, var(--neon-yellow), transparent),
+        radial-gradient(2px 2px at 130px 80px, var(--neon-purple), transparent),
+        radial-gradient(1px 1px at 160px 120px, var(--neon-green), transparent);
+    background-size: 200px 200px;
+    animation: twinkle 5s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 9998;
+    opacity: 0.6;
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+#game-container {
+    position: relative;
+    width: 800px;
+    height: 600px;
+    background: linear-gradient(180deg, #1a0a2e 0%, #0d1b2a 100%);
+    border: 4px solid transparent;
+    border-image: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan), var(--neon-purple)) 1;
+    box-shadow:
+        0 0 20px rgba(255, 42, 109, 0.3),
+        0 0 40px rgba(5, 217, 232, 0.2),
+        inset 0 0 60px rgba(13, 2, 33, 0.5);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* 游戏容器霓虹边框动画 */
+#game-container::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    background: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan), var(--neon-purple), var(--neon-pink));
+    background-size: 400% 400%;
+    z-index: -1;
+    border-radius: 12px;
+    animation: borderGlow 3s ease infinite;
+}
+
+@keyframes borderGlow {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+#game-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+#ui-layer > * {
+    pointer-events: auto;
+}
+
+/* ========== 商店系统样式 - 复古未来主义风格 ========== */
+.shop-ui {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+}
+
+.shop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, rgba(13, 2, 33, 0.95) 0%, rgba(10, 10, 15, 0.98) 100%);
+    backdrop-filter: blur(10px);
+}
+
+.shop-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    max-height: 90vh;
+    background: linear-gradient(145deg, rgba(45, 27, 78, 0.95) 0%, rgba(13, 2, 33, 0.98) 100%);
+    border: 3px solid transparent;
+    border-image: linear-gradient(135deg, var(--neon-purple), var(--neon-cyan)) 1;
+    border-radius: 16px;
+    box-shadow:
+        0 0 30px rgba(211, 0, 197, 0.4),
+        0 0 60px rgba(5, 217, 232, 0.2),
+        inset 0 0 30px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: shopPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes shopPopIn {
+    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.shop-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    background: linear-gradient(90deg, rgba(211, 0, 197, 0.3) 0%, rgba(5, 217, 232, 0.2) 100%);
+    border-bottom: 2px solid var(--neon-purple);
+    position: relative;
+}
+
+.shop-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--neon-pink), var(--neon-cyan), transparent);
+    animation: headerShine 2s ease-in-out infinite;
+}
+
+@keyframes headerShine {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.shop-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--neon-yellow), var(--neon-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 20px rgba(249, 240, 2, 0.5);
+    margin: 0;
+    letter-spacing: 2px;
+}
+
+.shop-npc {
+    font-size: 13px;
+    color: var(--neon-cyan);
+    margin-left: 12px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.shop-money {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, rgba(249, 240, 2, 0.2), rgba(255, 107, 53, 0.2));
+    padding: 10px 20px;
+    border-radius: 25px;
+    border: 2px solid var(--neon-yellow);
+    box-shadow: 0 0 15px rgba(249, 240, 2, 0.3);
+}
+
+.money-icon {
+    font-size: 22px;
+    animation: coinSpin 2s linear infinite;
+}
+
+@keyframes coinSpin {
+    0%, 100% { transform: scale(1) rotateY(0deg); }
+    50% { transform: scale(1.1) rotateY(180deg); }
+}
+
+.money-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--neon-yellow);
+    min-width: 80px;
+    text-align: right;
+    text-shadow: 0 0 10px rgba(249, 240, 2, 0.8);
+}
+
+.shop-tabs {
+    display: flex;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 2px solid rgba(211, 0, 197, 0.5);
+}
+
+.shop-tab {
+    flex: 1;
+    padding: 14px 24px;
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 15px;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    letter-spacing: 1px;
+}
+
+.shop-tab:hover {
+    background: rgba(255, 42, 109, 0.1);
+    color: var(--neon-pink);
+}
+
+.shop-tab.active {
+    background: linear-gradient(180deg, rgba(211, 0, 197, 0.3) 0%, transparent 100%);
+    color: var(--neon-cyan);
+}
+
+.shop-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--neon-pink), var(--neon-cyan));
+    box-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.shop-content {
+    display: flex;
+    flex: 1;
+    min-height: 400px;
+}
+
+.shop-items-panel {
+    flex: 1;
+    overflow-y: auto;
+    border-right: 2px solid rgba(211, 0, 197, 0.3);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.shop-items-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.shop-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-left: 4px solid transparent;
+    position: relative;
+}
+
+.shop-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, rgba(255, 42, 109, 0), rgba(255, 42, 109, 0.1), rgba(255, 42, 109, 0));
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.shop-item:hover::before {
+    opacity: 1;
+}
+
+.shop-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateX(5px);
+}
+
+.shop-item.selected {
+    background: linear-gradient(90deg, rgba(211, 0, 197, 0.3) 0%, rgba(5, 217, 232, 0.1) 100%);
+    border-left-color: var(--neon-pink);
+}
+
+.shop-item.selected::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--neon-pink), var(--neon-cyan));
+    box-shadow: 0 0 10px var(--neon-pink);
+}
+
+.shop-item.out-of-stock {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.item-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    border: 3px solid;
+    border-image: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan)) 1;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 15px rgba(255, 42, 109, 0.3);
+    position: relative;
+    z-index: 1;
+}
+
+.item-info {
+    flex: 1;
+    position: relative;
+    z-index: 1;
+}
+
+.item-name {
+    font-size: 15px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--starlight);
+}
+
+.item-type {
+    font-size: 12px;
+    color: var(--neon-cyan);
+    font-family: 'Orbitron', sans-serif;
+}
+
+.item-price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 17px;
+    font-weight: bold;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 10px rgba(249, 240, 2, 0.5);
+}
+
+.item-price.sell {
+    color: var(--neon-green);
+    text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+}
+
+.item-quantity {
+    font-size: 14px;
+    color: var(--neon-cyan);
+    margin-right: 10px;
+}
+
+.item-stock {
+    font-size: 12px;
+    color: var(--neon-pink);
+}
+
+.shop-items-empty {
+    padding: 50px;
+    text-align: center;
+    color: #666;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.shop-detail-panel {
+    width: 280px;
+    padding: 24px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(45, 27, 78, 0.2) 100%);
+    overflow-y: auto;
+}
+
+.shop-detail-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #666;
+    text-align: center;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.shop-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.detail-header {
+    display: flex;
+    gap: 18px;
+    padding-bottom: 18px;
+    border-bottom: 2px solid;
+    border-image: linear-gradient(90deg, var(--neon-purple), transparent) 1;
+}
+
+.detail-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    border: 3px solid;
+    border-image: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan)) 1;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 25px rgba(255, 42, 109, 0.4);
+    animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 25px rgba(255, 42, 109, 0.4); }
+    50% { transform: scale(1.05); box-shadow: 0 0 35px rgba(5, 217, 232, 0.6); }
+}
+
+.detail-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.detail-name {
+    font-size: 19px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: var(--starlight);
+}
+
+.detail-rarity {
+    font-size: 13px;
+    color: var(--neon-purple);
+    margin-bottom: 5px;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.detail-owned {
+    font-size: 13px;
+    color: var(--neon-green);
+    font-family: 'Orbitron', sans-serif;
+}
+
+.detail-description {
+    font-size: 14px;
+    color: #ccc;
+    line-height: 1.7;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    border: 1px solid rgba(5, 217, 232, 0.3);
+}
+
+.detail-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    font-size: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-name {
+    color: #aaa;
+}
+
+.stat-value.positive {
+    color: var(--neon-green);
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+}
+
+.detail-quantity {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.detail-quantity label {
+    font-size: 14px;
+    color: #aaa;
+}
+
+.quantity-selector {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.quantity-btn {
+    width: 44px;
+    height: 44px;
+    border: 2px solid var(--neon-cyan);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(5, 217, 232, 0.2), rgba(211, 0, 197, 0.2));
+    color: var(--starlight);
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.quantity-btn:hover {
+    background: linear-gradient(135deg, rgba(5, 217, 232, 0.4), rgba(211, 0, 197, 0.4));
+    box-shadow: 0 0 15px var(--neon-cyan);
+    transform: scale(1.1);
+}
+
+.quantity-btn:active {
+    transform: scale(0.95);
+}
+
+.quantity-input {
+    flex: 1;
+    height: 44px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid var(--neon-purple);
+    border-radius: 10px;
+    color: var(--neon-yellow);
+    font-family: 'Orbitron', sans-serif;
+}
+
+.quantity-max {
+    display: flex;
+    gap: 10px;
+}
+
+.quantity-max-btn {
+    flex: 1;
+    padding: 8px;
+    border: 2px solid rgba(211, 0, 197, 0.5);
+    background: rgba(0, 0, 0, 0.3);
+    color: #aaa;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    font-family: 'Orbitron', sans-serif;
+}
+
+.quantity-max-btn:hover {
+    border-color: var(--neon-pink);
+    color: var(--neon-pink);
+    background: rgba(255, 42, 109, 0.2);
+}
+
+.detail-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.5) 0%, rgba(45, 27, 78, 0.5) 100%);
+    border-radius: 14px;
+    font-size: 16px;
+    border: 2px solid rgba(249, 240, 2, 0.3);
+}
+
+.detail-total span:first-child {
+    color: #aaa;
+}
+
+.total-price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 15px rgba(249, 240, 2, 0.7);
+}
+
+.total-price.insufficient {
+    color: var(--neon-pink);
+    text-shadow: 0 0 15px rgba(255, 42, 109, 0.7);
+}
+
+.detail-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.buy-btn,
+.sell-btn {
+    flex: 1;
+    padding: 16px;
+    border: none;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.buy-btn {
+    background: linear-gradient(135deg, var(--neon-green) 0%, #22c55e 100%);
+    color: #000;
+    box-shadow: 0 0 20px rgba(57, 255, 20, 0.4);
+}
+
+.buy-btn:hover:not(.disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 0 30px rgba(57, 255, 20, 0.6);
+}
+
+.buy-btn.disabled {
+    background: linear-gradient(135deg, #444 0%, #333 100%);
+    color: #888;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.sell-btn {
+    background: linear-gradient(135deg, var(--neon-orange) 0%, var(--neon-yellow) 100%);
+    color: #000;
+    box-shadow: 0 0 20px rgba(255, 107, 53, 0.4);
+}
+
+.sell-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 30px rgba(255, 107, 53, 0.6);
+}
+
+.shop-footer {
+    padding: 18px 24px;
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 2px solid rgba(211, 0, 197, 0.3);
+    display: flex;
+    justify-content: center;
+}
+
+.shop-close-btn {
+    padding: 14px 48px;
+    border: 2px solid var(--neon-pink);
+    background: transparent;
+    color: var(--neon-pink);
+    font-size: 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.shop-close-btn:hover {
+    background: rgba(255, 42, 109, 0.2);
+    box-shadow: 0 0 20px var(--neon-pink);
+    transform: scale(1.05);
+}
+
+/* ========== 对话框样式 - 复古未来主义 ========== */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, rgba(13, 2, 33, 0.85) 0%, rgba(10, 10, 15, 0.95) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(5px);
+}
+
+.dialog-box {
+    background: linear-gradient(145deg, rgba(45, 27, 78, 0.98) 0%, rgba(13, 2, 33, 0.98) 100%);
+    border: 3px solid transparent;
+    border-image: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan), var(--neon-purple)) 1;
+    border-radius: 16px;
+    padding: 30px 35px;
+    min-width: 380px;
+    text-align: center;
+    box-shadow:
+        0 0 40px rgba(255, 42, 109, 0.3),
+        0 0 80px rgba(5, 217, 232, 0.2),
+        inset 0 0 40px rgba(0, 0, 0, 0.5);
+    animation: dialogPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes dialogPopIn {
+    0% { transform: scale(0.7); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.dialog-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    background: linear-gradient(135deg, var(--neon-yellow), var(--neon-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 24px 0;
+    letter-spacing: 2px;
+}
+
+.dialog-content {
+    margin-bottom: 28px;
+}
+
+.dialog-content p {
+    color: #ddd;
+    font-size: 16px;
+    line-height: 1.9;
+    margin: 0 0 12px 0;
+}
+
+.dialog-price {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 22px;
+    color: var(--neon-yellow);
+    font-weight: bold;
+    text-shadow: 0 0 15px rgba(249, 240, 2, 0.7);
+}
+
+.dialog-buttons {
+    display: flex;
+    gap: 18px;
+}
+
+.dialog-btn {
+    flex: 1;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.dialog-btn.cancel {
+    background: linear-gradient(135deg, #555 0%, #333 100%);
+    color: #fff;
+    border: 2px solid #666;
+}
+
+.dialog-btn.cancel:hover {
+    background: linear-gradient(135deg, #666 0%, #444 100%);
+    border-color: #888;
+}
+
+.dialog-btn.confirm {
+    background: linear-gradient(135deg, var(--neon-green) 0%, #22c55e 100%);
+    color: #000;
+    box-shadow: 0 0 20px rgba(57, 255, 20, 0.4);
+}
+
+.dialog-btn.confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(57, 255, 20, 0.6);
+}
+
+/* 滚动条样式 - 霓虹风格 */
+.shop-items-panel::-webkit-scrollbar,
+.shop-detail-panel::-webkit-scrollbar {
+    width: 10px;
+}
+
+.shop-items-panel::-webkit-scrollbar-track,
+.shop-detail-panel::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 5px;
+}
+
+.shop-items-panel::-webkit-scrollbar-thumb,
+.shop-detail-panel::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--neon-pink), var(--neon-cyan));
+    border-radius: 5px;
+    box-shadow: 0 0 10px var(--neon-pink);
+}
+
+/* 稀有度颜色 */
+.rarity-common { color: #9ca3af; }
+.rarity-uncommon { color: var(--neon-green); }
+.rarity-rare { color: var(--neon-cyan); }
+.rarity-epic { color: var(--neon-purple); }
+.rarity-legendary { color: var(--neon-yellow); text-shadow: 0 0 10px var(--neon-yellow); }

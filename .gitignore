@@ -1,0 +1,17 @@
+# Superpowers brainstorming files
+.superpowers/
+
+# Claude Code local config
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+.gstack/
