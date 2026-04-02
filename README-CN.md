@@ -1,4 +1,4 @@
-# 宝可梦风格网页RPG游戏
+# Sprite Adventure 精灵冒险
 
 一个使用纯 HTML5 Canvas 和 TypeScript 开发的宝可梦风格回合制网页RPG游戏。
 

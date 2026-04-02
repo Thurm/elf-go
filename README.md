@@ -1,4 +1,4 @@
-# Pokemon RPG Game
+# Sprite Adventure
 
 A Pokemon-style turn-based web RPG game developed with pure HTML5 Canvas and TypeScript.
 
