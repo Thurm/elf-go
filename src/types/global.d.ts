@@ -43,6 +43,12 @@ interface MonsterTemplate {
   skills: string[];
   expReward: number;
   drops: DropItem[];
+  randomTypes?: ElementTypeValue[];
+  profile?: {
+    description: string;
+    habitat?: string;
+    temperament?: string;
+  };
 }
 
 interface SkillRef {
@@ -205,6 +211,9 @@ interface Quest {
 
 interface PlayerData {
   name: string;
+  level: number;
+  exp: number;
+  expToNext: number;
   party: PlayerMonster[];
   equipment: Record<EquipmentSlotValue, string | null>;
   inventory: InventoryItem[];
@@ -214,6 +223,10 @@ interface PlayerData {
   location: { x: number; y: number };
   quests: ActiveQuest[];
   completedQuests: string[];
+  pokedex: {
+    seen: string[];
+    owned: string[];
+  };
 }
 
 interface GameStateData {
@@ -514,6 +527,11 @@ interface BattleResult {
   exp: number;
   rewards: string[];
   battleLog: string[];
+  money?: number;
+  playerExp?: number;
+  playerLevelDelta?: number;
+  monsterLevelUps?: Array<{ monsterId: string; nickname: string; from: number; to: number }>;
+  rewardItems?: Array<{ itemId: string; quantity: number; sourceMonsterId?: string; sourceLevel?: number }>;
 }
 
 interface SaveFile {

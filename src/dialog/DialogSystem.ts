@@ -333,6 +333,9 @@ class DialogSystem {
                 gameState.player.party = [];
             }
             gameState.player.party.push(monster);
+            if (typeof registerMonsterInPokedex === 'function') {
+                registerMonsterInPokedex(gameState.player, monster.monsterId, 'owned');
+            }
             const starterFlags = {
                 selected_fire: data.monsterId === 'fire_dragon',
                 selected_water: data.monsterId === 'water_dragon',
@@ -342,7 +345,10 @@ class DialogSystem {
                 starter_monster_nickname: monster.nickname
             };
 
-            gameStateMachine.updatePlayer({ party: gameState.player.party });
+            gameStateMachine.updatePlayer({
+                party: gameState.player.party,
+                pokedex: gameState.player.pokedex
+            });
             gameStateMachine.updateGameState({
                 flags: {
                     ...gameState.flags,

@@ -15,6 +15,31 @@ function createEmptyEquipmentRecord(): Record<EquipmentSlotValue, string | null>
     };
 }
 
+function calculatePlayerExpToNext(level: number): number {
+    return Math.floor(60 * Math.pow(level, 1.35));
+}
+
+function createEmptyPokedex() {
+    return {
+        seen: [] as string[],
+        owned: [] as string[]
+    };
+}
+
+function registerMonsterInPokedex(player: PlayerData, monsterId: string, mode: 'seen' | 'owned' = 'seen'): void {
+    if (!player.pokedex) {
+        player.pokedex = createEmptyPokedex();
+    }
+
+    if (!player.pokedex.seen.includes(monsterId)) {
+        player.pokedex.seen.push(monsterId);
+    }
+
+    if (mode === 'owned' && !player.pokedex.owned.includes(monsterId)) {
+        player.pokedex.owned.push(monsterId);
+    }
+}
+
 function calculateMonsterStats(baseStats: BaseStats, level: number): MonsterStats {
     const levelMultiplier = 1 + (level - 1) * 0.1;
     const stats = {
@@ -73,8 +98,14 @@ function createInitialPlayer(): PlayerData {
         throw new Error('Failed to create initial starter monster: fire_dragon');
     }
 
+    const pokedex = createEmptyPokedex();
+    registerMonsterInPokedex({ pokedex } as PlayerData, starterMonster.monsterId, 'owned');
+
     return {
         name: '玩家',
+        level: 1,
+        exp: 0,
+        expToNext: calculatePlayerExpToNext(1),
         party: [starterMonster],
         equipment: createEmptyEquipmentRecord(),
         inventory: [
@@ -86,7 +117,8 @@ function createInitialPlayer(): PlayerData {
         money: 1000,
         location: { x: 15, y: 15 },
         quests: [],
-        completedQuests: []
+        completedQuests: [],
+        pokedex
     };
 }
 

@@ -62,7 +62,7 @@ class QuestManager {
         });
 
         // 购买事件 - 更新购买目标
-        eventBus.on(GameEvents.SHOP_BUY, (data) => {
+        eventBus.on('shop:item_bought', (data) => {
             if (data && data.itemId) {
                 this.updateQuestProgress('buy', data.itemId, data.quantity || 1);
             }
@@ -290,31 +290,42 @@ class QuestManager {
 
         // 给予物品
         if (rewards.items && rewards.items.length > 0) {
-            if (!player.inventory) {
-                player.inventory = [];
-            }
-
             for (const item of rewards.items) {
-                const existing = player.inventory.find(i => i.itemId === item.itemId);
-                if (existing) {
-                    existing.quantity += item.quantity;
+                if (typeof inventoryManager !== 'undefined' && inventoryManager.addItem) {
+                    inventoryManager.addItem(item.itemId, item.quantity);
                 } else {
-                    player.inventory.push({ ...item });
+                    if (!player.inventory) {
+                        player.inventory = [];
+                    }
+                    const existing = player.inventory.find(i => i.itemId === item.itemId);
+                    if (existing) {
+                        existing.quantity += item.quantity;
+                    } else {
+                        player.inventory.push({ ...item });
+                    }
                 }
             }
 
             console.log(`[QuestManager] 获得物品:`, rewards.items);
         }
 
-        // TODO: 给予经验值
         if (rewards.exp) {
+            player.exp = (player.exp || 0) + rewards.exp;
+            while (player.exp >= player.expToNext) {
+                player.exp -= player.expToNext;
+                player.level += 1;
+                player.expToNext = calculatePlayerExpToNext(player.level);
+            }
             console.log(`[QuestManager] 获得经验: ${rewards.exp}`);
-            // 经验值处理由战斗系统或角色系统管理
         }
 
         gameStateMachine.updatePlayer({
+            level: player.level,
+            exp: player.exp,
+            expToNext: player.expToNext,
             money: player.money,
-            inventory: player.inventory
+            inventory: player.inventory,
+            pokedex: player.pokedex
         });
     }
 
