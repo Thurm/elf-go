@@ -158,10 +158,46 @@ function getUIManager() {
  * 战斗UI类
  */
 class BattleUI {
+    canvas: HTMLCanvasElement | null;
+    ctx: CanvasRenderingContext2D | null;
+    initialized: boolean;
+    spriteRenderer: SpriteRenderer | null;
+
+    // UI状态
+    state: string;
+
+    // 战斗数据引用
+    playerMonster: any;
+    enemyMonster: any;
+    battleLog: any[];
+
+    // 菜单状态
+    menuStack: any[];
+    currentMenu: any;
+    selectedIndex: number;
+
+    // 伤害数字动画
+    damageNumbers: any[];
+
+    // 状态效果图标
+    statusIcons: Map<any, any>;
+
+    // 捕获动画
+    captureEffect: any;
+
+    // 消息显示
+    currentMessage: any;
+    messageTimer: number;
+    messageCallback: any;
+
+    // 等待执行的 action（用于消息确认后执行）
+    pendingAction: any;
+
     constructor() {
         this.canvas = null;
         this.ctx = null;
         this.initialized = false;
+        this.spriteRenderer = null;
 
         // UI状态
         this.state = BattleUIState.IDLE;
@@ -206,6 +242,12 @@ class BattleUI {
         this.canvas = canvas;
         this.ctx = ctx;
         this.initialized = true;
+
+        // 初始化精灵渲染器
+        if (window.SpriteRenderer) {
+            this.spriteRenderer = new window.SpriteRenderer();
+            this.spriteRenderer.init(ctx);
+        }
 
         // 初始化状态图标
         this._initStatusIcons();
@@ -1151,7 +1193,7 @@ class BattleUI {
     }
 
     /**
-     * 渲染怪兽精灵 - 简洁风格
+     * 渲染怪兽精灵 - 使用像素精灵渲染器
      * @param {number} x - X坐标
      * @param {number} y - Y坐标
      * @param {Object} monster - 怪兽数据
@@ -1159,6 +1201,25 @@ class BattleUI {
      * @private
      */
     _renderMonsterSprite(x, y, monster, isEnemy) {
+        // 优先使用像素精灵渲染器
+        if (this.spriteRenderer) {
+            this.spriteRenderer.renderMonsterSprite(monster.monsterId, x, y, isEnemy, isEnemy ? 1.2 : 1.5);
+            return;
+        }
+
+        // 回退到圆形渲染
+        this._renderFallbackMonster(x, y, monster, isEnemy);
+    }
+
+    /**
+     * 回退渲染（圆形）
+     * @param {number} x - X坐标
+     * @param {number} y - Y坐标
+     * @param {Object} monster - 怪兽数据
+     * @param {boolean} isEnemy - 是否是敌方
+     * @private
+     */
+    _renderFallbackMonster(x, y, monster, isEnemy) {
         const ctx = this.ctx;
         const size = isEnemy ? 80 : 100;
         const time = Date.now() / 1000;

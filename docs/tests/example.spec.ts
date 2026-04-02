@@ -1313,3 +1313,149 @@ test.describe('精灵冒险项目回归', () => {
     });
   });
 });
+
+test.describe('大型玩法扩展需求验收', () => {
+  test('玩家应以 Lv.1 与图鉴结构开局', async ({ page }) => {
+    test.fail(true, '待实现：玩家等级与图鉴数据结构');
+
+    await gotoGame(page);
+
+    const snapshot = await page.evaluate(() => ({
+      level: gameStateMachine.getGameState().player.level,
+      exp: gameStateMachine.getGameState().player.exp,
+      expToNext: gameStateMachine.getGameState().player.expToNext,
+      pokedexSeen: gameStateMachine.getGameState().player.pokedex?.seen,
+      pokedexOwned: gameStateMachine.getGameState().player.pokedex?.owned,
+    }));
+
+    expect(snapshot.level).toBe(1);
+    expect(snapshot.exp).toBe(0);
+    expect(snapshot.expToNext).toBeGreaterThan(0);
+    expect(Array.isArray(snapshot.pokedexSeen)).toBe(true);
+    expect(Array.isArray(snapshot.pokedexOwned)).toBe(true);
+  });
+
+  test('主菜单应新增图鉴入口并可进入图鉴页', async ({ page }) => {
+    test.fail(true, '待实现：图鉴菜单入口与图鉴页');
+
+    await startMapGame(page);
+    await openMapMenu(page);
+
+    const snapshot = await page.evaluate(() => ({
+      items: menuUI.currentMenu?.items?.map(item => item.text) || [],
+      menuType: menuUI.currentMenu?.type,
+    }));
+
+    expect(snapshot.items).toContain('图鉴');
+
+    await page.evaluate(() => {
+      const index = menuUI.currentMenu?.items?.findIndex(item => item.text === '图鉴') ?? -1;
+      if (index >= 0) {
+        menuUI.selectedIndex = index;
+        menuUI.confirmSelection();
+      }
+    });
+
+    await page.waitForFunction(() => menuUI.currentMenu?.type === 'pokedex');
+  });
+
+  test('怪兽模板应至少覆盖 10 只且每只具备属性与技能', async ({ page }) => {
+    test.fail(true, '待实现：扩展怪兽模板数量与技能覆盖');
+
+    await gotoGame(page);
+
+    const snapshot = await page.evaluate(() => {
+      const monsters = Object.values(window.MonsterTemplates || {});
+      return {
+        count: monsters.length,
+        invalid: monsters.filter(monster => !monster.type || !Array.isArray(monster.skills) || monster.skills.length === 0)
+          .map(monster => monster.id),
+      };
+    });
+
+    expect(snapshot.count).toBeGreaterThanOrEqual(10);
+    expect(snapshot.invalid).toEqual([]);
+  });
+
+  test('遭遇野怪后应先进入战前选怪流程', async ({ page }) => {
+    test.fail(true, '待实现：战前选怪流程');
+
+    await startMapGame(page);
+    await page.evaluate(() => {
+      battleSystem.startWildBattle('water_turtle', 5);
+    });
+
+    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'BATTLE');
+
+    const snapshot = await page.evaluate(() => ({
+      menuType: battleUI.currentMenu?.type ?? null,
+      state: battleUI.state,
+    }));
+
+    expect(snapshot.menuType).toBe('pre_battle_party');
+    expect(snapshot.state).toBe('selecting_monster');
+  });
+
+  test('战斗胜利后应进入结算面板并展示经验、金额与掉落', async ({ page }) => {
+    test.fail(true, '待实现：战后结算面板');
+
+    await prepareWildBattle(page, 'water_turtle', 6);
+
+    await page.evaluate(() => {
+      battleSystem.currentEnemyMonster.stats.hp = 1;
+      battleSystem.currentEnemyMonster.expReward = 180;
+      battleSystem.currentEnemyMonster.drops = [{ itemId: 'water_gem', chance: 1 }];
+      damageCalculator.checkHit = () => true;
+      damageCalculator.getRandomFactor = () => 1;
+      damageCalculator.checkCritical = () => false;
+      battleSystem.executeEnemyTurn = () => {};
+      battleSystem.playerUseSkill(battleSystem.currentPlayerMonster.skills[0].skillId);
+    });
+
+    await page.waitForTimeout(1500);
+
+    const snapshot = await page.evaluate(() => ({
+      menuType: battleUI.currentMenu?.type,
+      resultSummary: battleUI.battleResultSummary,
+    }));
+
+    expect(snapshot.menuType).toBe('battle_result');
+    expect(snapshot.resultSummary.expGained).toBeGreaterThan(0);
+    expect(snapshot.resultSummary.moneyGained).toBeGreaterThan(0);
+    expect(snapshot.resultSummary.items.some(item => item.itemId === 'water_gem')).toBe(true);
+  });
+
+  test('掉落应进入背包并同时写入图鉴的已遇到与已拥有状态', async ({ page }) => {
+    test.fail(true, '待实现：掉落入包与图鉴 seen/owned 持久化');
+
+    await prepareWildBattle(page, 'water_turtle', 6);
+
+    const before = await page.evaluate(() => ({
+      inventoryQty: (gameStateMachine.getGameState().player.inventory.find(item => item.itemId === 'water_gem')?.quantity) || 0,
+      seen: gameStateMachine.getGameState().player.pokedex?.seen || [],
+      owned: gameStateMachine.getGameState().player.pokedex?.owned || [],
+    }));
+
+    await page.evaluate(() => {
+      battleSystem.currentEnemyMonster.stats.hp = 1;
+      battleSystem.currentEnemyMonster.drops = [{ itemId: 'water_gem', chance: 1 }];
+      damageCalculator.checkHit = () => true;
+      damageCalculator.getRandomFactor = () => 1;
+      damageCalculator.checkCritical = () => false;
+      battleSystem.executeEnemyTurn = () => {};
+      battleSystem.playerUseSkill(battleSystem.currentPlayerMonster.skills[0].skillId);
+    });
+
+    await page.waitForTimeout(1500);
+
+    const after = await page.evaluate(() => ({
+      inventoryQty: (gameStateMachine.getGameState().player.inventory.find(item => item.itemId === 'water_gem')?.quantity) || 0,
+      seen: gameStateMachine.getGameState().player.pokedex?.seen || [],
+      owned: gameStateMachine.getGameState().player.pokedex?.owned || [],
+    }));
+
+    expect(after.inventoryQty).toBe(before.inventoryQty + 1);
+    expect(after.seen).toContain('water_turtle');
+    expect(after.owned).toContain('water_turtle');
+  });
+});

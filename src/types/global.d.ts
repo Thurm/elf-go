@@ -773,12 +773,44 @@ interface Window {
 
 // ==================== Window 扩展 ====================
 
+// 像素精灵类型
+type PixelSprite = (string | null)[][];
+
+interface SpriteRenderer {
+  ctx: CanvasRenderingContext2D | null;
+  pixelScale: number;
+  init(ctx: CanvasRenderingContext2D): void;
+  renderSprite(spriteData: PixelSprite, x: number, y: number, scale?: number): void;
+  renderMonsterSprite(monsterId: string, x: number, y: number, isEnemy?: boolean, scale?: number): void;
+  _getMonsterGlowColor(monsterId: string): string;
+  _renderFallbackMonster(x: number, y: number, isEnemy: boolean, scale: number): void;
+  _adjustColorBrightness(hexColor: string, amount: number): string;
+}
+
+interface MonsterSpritesData {
+  [key: string]: {
+    front: PixelSprite;
+    back: PixelSprite;
+  };
+}
+
+interface SpriteColorsData {
+  [key: string]: string | null;
+}
+
 interface Window {
   // 核心架构
   eventBus: EventBus;
   GameEvents: typeof GameEvents;
   gameStateMachine: GameStateMachine;
   saveManager: SaveManager;
+
+  // 精灵渲染
+  SpriteRenderer: {
+    new(): SpriteRenderer;
+  };
+  MonsterSprites: MonsterSpritesData;
+  SpriteColors: SpriteColorsData;
 
   // 数据
   GameState: typeof GameState;
