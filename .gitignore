@@ -15,3 +15,17 @@ Thumbs.db
 *.swo
 
 .gstack/
+
+# Node modules
+node_modules/
+
+# Build output
+dist/
+
+# Backup files
+bak/
+index.bak.html
+
+# Playwright test artifacts
+docs/test-results/
+docs/playwright-report/

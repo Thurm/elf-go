@@ -32,7 +32,7 @@
 
         <div class="buttons">
             <button id="runAll">运行所有测试</button>
-            <button onclick="window.location.href='index.html'">打开游戏</button>
+            <button onclick="openGame()">打开游戏</button>
         </div>
 
         <div id="test-results"></div>
@@ -97,6 +97,18 @@
             });
         }
 
+        function getTarget() {
+            return new URLSearchParams(window.location.search).get('target') || 'dist';
+        }
+
+        function getBaseDir() {
+            return getTarget() === 'bak' ? 'bak/js' : 'dist';
+        }
+
+        function openGame() {
+            window.location.href = getTarget() === 'bak' ? 'index.bak.html' : 'index.html';
+        }
+
         // 运行所有测试
         async function runAllTests() {
             testResults.length = 0;
@@ -107,34 +119,37 @@
             console.log('开始加载模块...');
 
             try {
-                // 按依赖顺序加载脚本
-                await loadScript('js/core/EventBus.js');
-                await loadScript('js/core/data/GameData.js');
-                await loadScript('js/core/data/MonsterData.js');
-                await loadScript('js/core/data/SkillData.js');
-                await loadScript('js/core/data/ItemData.js');
-                await loadScript('js/core/data/MapData.js');
-                await loadScript('js/core/GameStateMachine.js');
-                await loadScript('js/core/SaveManager.js');
-                await loadScript('js/battle/DamageCalculator.js');
-                await loadScript('js/battle/SkillExecutor.js');
-                await loadScript('js/battle/BattleSystem.js');
-                await loadScript('js/dialog/DialogData.js');
-                await loadScript('js/dialog/ScriptParser.js');
-                await loadScript('js/dialog/QuestManager.js');
-                await loadScript('js/dialog/DialogSystem.js');
-                await loadScript('js/map/MapRenderer.js');
-                await loadScript('js/map/MapStateMachine.js');
-                await loadScript('js/map/PlayerController.js');
-                await loadScript('js/map/SceneManager.js');
-                await loadScript('js/map/index.js');
-                await loadScript('js/shop/InventoryManager.js');
-                await loadScript('js/shop/ShopSystem.js');
-                await loadScript('js/shop/ShopUI.js');
-                await loadScript('js/ui/AudioManager.js');
-                await loadScript('js/ui/UIManager.js');
-                await loadScript('js/ui/BattleUI.js');
-                await loadScript('js/ui/MenuUI.js');
+                const baseDir = getBaseDir();
+                if (getTarget() !== 'bak') {
+                    await loadScript(`${baseDir}/bootstrap/inlineDialogData.js`);
+                }
+                await loadScript(`${baseDir}/core/EventBus.js`);
+                await loadScript(`${baseDir}/core/data/GameData.js`);
+                await loadScript(`${baseDir}/core/data/MonsterData.js`);
+                await loadScript(`${baseDir}/core/data/SkillData.js`);
+                await loadScript(`${baseDir}/core/data/ItemData.js`);
+                await loadScript(`${baseDir}/core/data/MapData.js`);
+                await loadScript(`${baseDir}/core/GameStateMachine.js`);
+                await loadScript(`${baseDir}/core/SaveManager.js`);
+                await loadScript(`${baseDir}/battle/DamageCalculator.js`);
+                await loadScript(`${baseDir}/battle/SkillExecutor.js`);
+                await loadScript(`${baseDir}/battle/BattleSystem.js`);
+                await loadScript(`${baseDir}/dialog/DialogData.js`);
+                await loadScript(`${baseDir}/dialog/ScriptParser.js`);
+                await loadScript(`${baseDir}/dialog/QuestManager.js`);
+                await loadScript(`${baseDir}/dialog/DialogSystem.js`);
+                await loadScript(`${baseDir}/map/MapRenderer.js`);
+                await loadScript(`${baseDir}/map/MapStateMachine.js`);
+                await loadScript(`${baseDir}/map/PlayerController.js`);
+                await loadScript(`${baseDir}/map/SceneManager.js`);
+                await loadScript(`${baseDir}/map/index.js`);
+                await loadScript(`${baseDir}/shop/InventoryManager.js`);
+                await loadScript(`${baseDir}/shop/ShopSystem.js`);
+                await loadScript(`${baseDir}/shop/ShopUI.js`);
+                await loadScript(`${baseDir}/ui/AudioManager.js`);
+                await loadScript(`${baseDir}/ui/UIManager.js`);
+                await loadScript(`${baseDir}/ui/BattleUI.js`);
+                await loadScript(`${baseDir}/ui/MenuUI.js`);
 
                 console.log('所有模块加载完成！');
 
@@ -267,7 +282,8 @@
 
                 test('DialogData 应该有数据', () => {
                     assert(typeof DialogData !== 'undefined', 'DialogData not defined');
-                    assert(typeof DialogScripts !== 'undefined', 'DialogScripts not defined');
+                    assert(typeof DialogNodes !== 'undefined', 'DialogNodes not defined');
+                    assert(Object.keys(DialogData).length > 0, 'DialogData is empty');
                 });
 
                 test('mapSystem 应该存在', () => {

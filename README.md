@@ -1,6 +1,6 @@
 # Pokemon RPG Game
 
-A Pokemon-style turn-based web RPG game developed with pure HTML5 Canvas and vanilla JavaScript.
+A Pokemon-style turn-based web RPG game developed with pure HTML5 Canvas and TypeScript.
 
 This project was completed by the Claude Code Agent Team.
 
@@ -26,11 +26,33 @@ This is a fully functional Pokemon-style web RPG game where players can explore 
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- Node.js (for TypeScript compilation)
+- Python 3 or any HTTP server
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+```
+
+### Build
+
+```bash
+# Compile TypeScript to JavaScript
+npm run build
+
+# Type check only (no emit)
+npm run typecheck
+```
+
 ### Running the Project
 
 **Method 1: Direct Open**
 ```bash
-# Simply open index.html in your browser
+# Simply open index.html in your browser (requires pre-built dist/)
 open index.html
 ```
 
@@ -82,43 +104,131 @@ npx serve .
 ## 📁 Project Structure
 
 ```
-cc_learning/
-├── index.html              # Main entry point
+elf-go/
+├── index.html              # Main entry point (uses dist/)
+├── index-dist.html        # Distribution-ready HTML
+├── index-js.html          # Legacy JS version
 ├── css/
-│   └── style.css           # Game styles
-├── js/
-│   ├── main.js             # Game main class
-│   ├── core/               # Core modules
-│   │   ├── EventBus.js     # Event bus
-│   │   ├── GameStateMachine.js  # State machine
-│   │   ├── SaveManager.js  # Save manager
-│   │   └── data/           # Game data
-│   ├── battle/             # Battle system
-│   ├── dialog/             # Dialog system
-│   ├── map/                # Map system
-│   ├── shop/               # Shop system
-│   └── ui/                 # UI & Audio
-├── docs/                   # Documentation
-└── assets/                 # Static assets
+│   └── style.css          # Game styles
+├── src/                   # TypeScript source code
+│   ├── main.ts            # Game entry point & main loop
+│   ├── types/             # Global TypeScript definitions
+│   ├── core/              # Core infrastructure
+│   │   ├── EventBus.ts    # Event publish-subscribe
+│   │   ├── GameStateMachine.ts  # State management
+│   │   ├── SaveManager.ts # Save/load system
+│   │   └── data/          # Game data definitions
+│   │       ├── GameData.ts
+│   │       ├── MonsterData.ts
+│   │       ├── SkillData.ts
+│   │       ├── ItemData.ts
+│   │       └── MapData.ts
+│   ├── battle/            # Battle system
+│   │   ├── BattleSystem.ts
+│   │   ├── DamageCalculator.ts
+│   │   └── SkillExecutor.ts
+│   ├── dialog/            # Dialog & quest system
+│   │   ├── DialogSystem.ts
+│   │   ├── DialogData.ts
+│   │   ├── QuestManager.ts
+│   │   └── ScriptParser.ts
+│   ├── map/               # Map system
+│   │   ├── index.ts
+│   │   ├── MapRenderer.ts
+│   │   ├── MapStateMachine.ts
+│   │   ├── PlayerController.ts
+│   │   └── SceneManager.ts
+│   ├── shop/              # Shop & inventory
+│   │   ├── ShopSystem.ts
+│   │   ├── InventoryManager.ts
+│   │   └── ShopUI.ts
+│   └── ui/                # UI & Audio
+│       ├── UIManager.ts
+│       ├── BattleUI.ts
+│       ├── MenuUI.ts
+│       └── AudioManager.ts
+├── dist/                  # Compiled JavaScript output
+├── bak/                   # Backup of original JS code
+├── docs/                  # Documentation
+├── package.json           # NPM config
+├── tsconfig.json          # TypeScript config (dev)
+└── tsconfig.build.json    # TypeScript config (build)
+```
+
+---
+
+## 🏗️ Architecture
+
+### System Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         HTML5 Canvas                            │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │                    Game Main Loop                         │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                              │                                  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              GameStateMachine (State Core)               │  │
+│  │  ┌───────┐  ┌─────┐  ┌────────┐  ┌────────┐  ┌─────┐ │ │
+│  │  │ TITLE │→│ MAP │→│ BATTLE │→│ DIALOG │→│ MENU│ │ │
+│  │  └───────┘  └─────┘  └────────┘  └────────┘  └─────┘ │ │
+│  └─────────────────────────────────────────────────────────┘  │
+│                              │                                  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │                    EventBus (Communicator)                │  │
+│  │         Publish / Subscribe for all modules               │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│        │              │              │             │           │
+│  ┌─────▼────┐  ┌────▼────┐  ┌────▼────┐  ┌───▼────┐    │
+│  │ MapSystem│  │BattleSys│  │DialogSys│  │ShopSys │    │
+│  └──────────┘  └─────────┘  └─────────┘  └────────┘    │
+│        │              │              │             │           │
+│  ┌─────▼──────────────────────────────────────────────────┐  │
+│  │              UI Layer (UIManager)                       │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐            │  │
+│  │  │BattleUI  │  │  MenuUI  │  │  Dialog  │            │  │
+│  │  └──────────┘  └──────────┘  └──────────┘            │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│                              │                                  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │              AudioManager (Web Audio API)                │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Modules
 
-| Module | Function |
-|--------|----------|
-| **EventBus** | Publish-subscribe pattern for decoupled module communication |
-| **GameStateMachine** | Manages game state transitions (title/map/battle/dialog/menu) |
-| **MapSystem** | Four-layer map rendering, collision detection, camera follow |
-| **BattleSystem** | Turn-based combat, elemental effectiveness, damage calculation |
-| **DialogSystem** | Dialog trees, quest management, script parsing |
-| **ShopSystem** | Merchandise trading, inventory management |
-| **AudioManager** | Sound effect generation and playback via Web Audio API |
+| Module | Responsibility | Key Files |
+|--------|----------------|-----------|
+| **EventBus** | Decoupled module communication via publish-subscribe | src/core/EventBus.ts |
+| **GameStateMachine** | Manages game state transitions (TITLE → MAP → BATTLE → DIALOG → MENU) | src/core/GameStateMachine.ts |
+| **SaveManager** | Save/load game progress to localStorage | src/core/SaveManager.ts |
+| **MapSystem** | Four-layer map rendering, collision detection, camera follow, player movement | src/map/ |
+| **BattleSystem** | Turn-based combat, elemental effectiveness, damage calculation, skill execution | src/battle/ |
+| **DialogSystem** | Dialog trees, quest management, script parsing, NPC interactions | src/dialog/ |
+| **ShopSystem** | Merchandise trading, inventory management, shop UI | src/shop/ |
+| **AudioManager** | Procedural sound effect generation and playback via Web Audio API | src/ui/AudioManager.ts |
+
+### Data-Driven Design
+
+All game content is defined in data files, not hard-coded:
+
+| Data Type | Location | Description |
+|-----------|----------|-------------|
+| Monsters | src/core/data/MonsterData.ts | Monster stats, skills, types |
+| Skills | src/core/data/SkillData.ts | Skill damage, PP, elemental types |
+| Items | src/core/data/ItemData.ts | Consumables, equipment, key items |
+| Maps | src/core/data/MapData.ts | Map layouts, collision, NPC positions |
+| Dialogs | src/dialog/DialogData.ts | NPC conversations, quest scripts |
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Core**: HTML5 Canvas + Vanilla JavaScript (ES6+)
+- **Core**: HTML5 Canvas + TypeScript 5.8
+- **Build**: TypeScript Compiler (tsc)
 - **Architecture**: Event-driven + State Machine + Modular Design
 - **Storage**: localStorage
 - **Audio Engine**: Web Audio API (Procedural Generation)
@@ -126,10 +236,13 @@ cc_learning/
 
 ### Design Patterns
 
-- **Publish-Subscribe**: EventBus for module communication
-- **State Machine**: Manages game state transitions
-- **Singleton**: Global unique instances for each manager
-- **Data-Driven**: Monsters/skills/items defined by data
+| Pattern | Usage |
+|---------|-------|
+| **Publish-Subscribe** | EventBus for decoupled module communication |
+| **State Machine** | GameStateMachine for managing game flow |
+| **Singleton** | Global unique instances for all manager classes |
+| **Data-Driven** | All game content defined in data files |
+| **Layered** | Four-layer map rendering (ground/middle/character/top) |
 
 ---
 
@@ -137,94 +250,29 @@ cc_learning/
 
 Detailed development documentation can be found in the `docs/` directory:
 
-- [Team Configuration](docs/team-configuration.md)
 - [Map Layout Design](docs/map-layout-design.md)
 - [Quest Dialog Scripts](docs/quest-dialog-scripts.md)
-
-For detailed module descriptions, please refer to the README.md in each corresponding directory.
-
----
-
-## ✅ Module Development Progress
-
-| Module | Status | Owner |
-|--------|--------|-------|
-| Core Architecture (EventBus/StateMachine) | ✅ Done | Teammate A |
-| Data Definitions | ✅ Done | Teammate A |
-| Battle System (Battle/Damage/Skill) | ✅ Done | Teammate B |
-| Dialog System (Dialog/Quest) | ✅ Done | Teammate C |
-| Map System (Map/Player/Scene) | ✅ Done | Teammate D |
-| UI/Audio (UI/Battle/Menu/Audio) | ✅ Done | Teammate E |
-| Shop System (Shop/Inventory) | ✅ Done | Teammate G |
+- [Battle Algorithm Design](docs/battle-algorithm-design.md)
+- [Shop & Inventory Design](docs/shop-inventory-design.md)
+- [UI & Sound Design](docs/ui-sound-design.md)
+- [Regression Test Cases](docs/regression-test-cases.md) - Complete Playwright test suite
 
 ---
 
-### Map System Features (Teammate D)
+## 🧪 Testing
 
-Implemented Features:
-- Four-layer map rendering (ground, middle, character, top)
-- Camera follows player
-- Player controller (WASD/arrow key movement)
-- Collision detection system
-- Grass encounter detection
-- Map state machine
-- Scene manager
-- Map data definitions (3 maps)
+### Unit Tests
 
-Map List:
-- Pallet Town (32x32, no encounters)
-- Route 1 (32x32, with encounters)
-- Chief's House (10x8, indoor map)
+Open `test.html` in your browser and click "Run All Tests".
 
----
+### E2E Tests (Playwright)
 
-### Dialog System Features (Teammate C)
+```bash
+# Run Playwright tests
+npm run test:e2e
+```
 
-Implemented Features:
-- NPC dialog system (6 NPCs with complete dialog)
-- Dialog tree traversal and option handling
-- Quest management system
-- Quest progress tracking
-- Dialog script parser
-- Action execution (give items/monsters, set flags, etc.)
-
-NPC List:
-- Village Chief (gives starter monster)
-- Xiao Ming (shop owner)
-- Grandma Wang (side quest)
-- Xiao Gang (information provider)
-- Xiao Hong (side quest)
-- Researcher (monster intelligence)
-
----
-
-### Battle System Features (Teammate B)
-
-Implemented Features:
-- Turn-based battle system core
-- Damage calculator (elemental effectiveness, randomness)
-- Skill executor
-- Battle state machine
-
----
-
-### UI & Audio Features (Teammate E)
-
-Implemented Features:
-- UI manager
-- Battle interface
-- Menu interface
-- Sound effect manager
-
----
-
-### Shop System Features (Teammate G)
-
-Implemented Features:
-- Shop system core
-- Inventory manager
-- Shop interface
-- Item data definitions (consumables, equipment, key items)
+Test configuration is in `docs/playwright.config.ts`.
 
 ---
 
@@ -234,9 +282,11 @@ Issues and Pull Requests are welcome!
 
 1. Fork this repository
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+3. Make changes in `src/` (TypeScript files)
+4. Run `npm run build` to compile
+5. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+6. Push to the branch (`git push origin feature/AmazingFeature`)
+7. Open a Pull Request
 
 ---
 
