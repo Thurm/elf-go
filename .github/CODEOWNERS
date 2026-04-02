@@ -1,0 +1,25 @@
+# GitHub CODEOWNERS 文件
+# 定义代码审查的默认负责人
+
+# 所有文件默认需要 @Thurm 审查
+* @Thurm
+
+# 核心模块
+/src/core/ @Thurm
+/src/battle/ @Thurm
+/src/dialog/ @Thurm
+/src/map/ @Thurm
+/src/shop/ @Thurm
+/src/ui/ @Thurm
+
+# 数据文件
+/src/core/data/ @Thurm
+/src/types/ @Thurm
+
+# 文档
+/docs/ @Thurm
+*.md @Thurm
+
+# 配置文件
+*.json @Thurm
+*.config.* @Thurm
