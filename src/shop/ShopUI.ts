@@ -57,6 +57,8 @@ class ShopUI {
             this.container.remove();
             this.container = null;
         }
+
+        this._removeShopOverlays();
     }
 
     /**
@@ -82,7 +84,34 @@ class ShopUI {
         this.container = document.createElement('div');
         this.container.id = 'shop-ui';
         this.container.className = 'shop-ui';
-        document.body.appendChild(this.container);
+        this._getUIHost().appendChild(this.container);
+    }
+
+    /**
+     * 获取 UI 宿主节点
+     * @returns {HTMLElement}
+     * @private
+     */
+    _getUIHost() {
+        return document.getElementById('ui-layer') || document.body;
+    }
+
+    /**
+     * 移除商店相关弹层
+     * @private
+     */
+    _removeShopOverlays() {
+        document.querySelectorAll('.shop-dialog-overlay').forEach((overlay) => overlay.remove());
+    }
+
+    /**
+     * 生成稀有度样式变量
+     * @param {{border:string,bg:string,text:string}} rarityColors - 稀有度色板
+     * @returns {string}
+     * @private
+     */
+    _getRarityStyleVars(rarityColors) {
+        return `--rarity-border: ${rarityColors.border}; --rarity-bg: ${rarityColors.bg}; --rarity-text: ${rarityColors.text};`;
     }
 
     /**
@@ -184,12 +213,12 @@ class ShopUI {
                     return `
                         <div class="shop-item ${isSelected ? 'selected' : ''} ${outOfStock ? 'out-of-stock' : ''}"
                              data-index="${index}"
-                             style="border-color: ${rarityColors.border}">
-                            <div class="item-icon" style="background: ${rarityColors.bg}">
+                             style="${this._getRarityStyleVars(rarityColors)}">
+                            <div class="item-icon">
                                 ${this._getItemIcon(template)}
                             </div>
                             <div class="item-info">
-                                <div class="item-name" style="color: ${rarityColors.text}">
+                                <div class="item-name">
                                     ${template.name}
                                 </div>
                                 <div class="item-type">${this._getItemTypeName(template)}</div>
@@ -243,12 +272,12 @@ class ShopUI {
 
         detailPanel.innerHTML = `
             <div class="shop-detail">
-                <div class="detail-header" style="border-color: ${rarityColors.border}">
-                    <div class="detail-icon" style="background: ${rarityColors.bg}">
+                <div class="detail-header" style="${this._getRarityStyleVars(rarityColors)}">
+                    <div class="detail-icon">
                         ${this._getItemIcon(template)}
                     </div>
                     <div class="detail-info">
-                        <h3 class="detail-name" style="color: ${rarityColors.text}">
+                        <h3 class="detail-name">
                             ${template.name}
                         </h3>
                         <div class="detail-rarity">${getRarityName(template.rarity)}</div>
@@ -340,7 +369,7 @@ class ShopUI {
         const totalPrice = item.price * this.buyQuantity;
 
         const overlay = document.createElement('div');
-        overlay.className = 'dialog-overlay';
+        overlay.className = 'dialog-overlay shop-dialog-overlay';
         overlay.innerHTML = `
             <div class="dialog-box">
                 <h3 class="dialog-title">确认购买</h3>
@@ -354,7 +383,7 @@ class ShopUI {
                 </div>
             </div>
         `;
-        document.body.appendChild(overlay);
+        this._getUIHost().appendChild(overlay);
 
         overlay.querySelector('#dialog-cancel').addEventListener('click', () => {
             overlay.remove();
@@ -404,12 +433,12 @@ class ShopUI {
                     return `
                         <div class="shop-item ${isSelected ? 'selected' : ''}"
                              data-uid="${item.uid}"
-                             style="border-color: ${rarityColors.border}">
-                            <div class="item-icon" style="background: ${rarityColors.bg}">
+                             style="${this._getRarityStyleVars(rarityColors)}">
+                            <div class="item-icon">
                                 ${this._getItemIcon(template)}
                             </div>
                             <div class="item-info">
-                                <div class="item-name" style="color: ${rarityColors.text}">
+                                <div class="item-name">
                                     ${template.name}
                                 </div>
                                 <div class="item-type">${this._getItemTypeName(template)}</div>
@@ -462,12 +491,12 @@ class ShopUI {
 
         detailPanel.innerHTML = `
             <div class="shop-detail">
-                <div class="detail-header" style="border-color: ${rarityColors.border}">
-                    <div class="detail-icon" style="background: ${rarityColors.bg}">
+                <div class="detail-header" style="${this._getRarityStyleVars(rarityColors)}">
+                    <div class="detail-icon">
                         ${this._getItemIcon(template)}
                     </div>
                     <div class="detail-info">
-                        <h3 class="detail-name" style="color: ${rarityColors.text}">
+                        <h3 class="detail-name">
                             ${template.name}
                         </h3>
                         <div class="detail-rarity">${getRarityName(template.rarity)}</div>
@@ -561,7 +590,7 @@ class ShopUI {
         const totalPrice = Math.floor(sellPrice * this.buyQuantity * this.currentShop.sellMultiplier);
 
         const overlay = document.createElement('div');
-        overlay.className = 'dialog-overlay';
+        overlay.className = 'dialog-overlay shop-dialog-overlay';
         overlay.innerHTML = `
             <div class="dialog-box">
                 <h3 class="dialog-title">确认出售</h3>
@@ -575,7 +604,7 @@ class ShopUI {
                 </div>
             </div>
         `;
-        document.body.appendChild(overlay);
+        this._getUIHost().appendChild(overlay);
 
         overlay.querySelector('#dialog-cancel').addEventListener('click', () => {
             overlay.remove();

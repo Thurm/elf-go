@@ -43,6 +43,12 @@ interface MonsterTemplate {
   skills: string[];
   expReward: number;
   drops: DropItem[];
+  randomTypes?: ElementTypeValue[];
+  profile?: {
+    description: string;
+    habitat: string;
+    temperament: string;
+  };
 }
 
 interface SkillRef {
@@ -65,6 +71,11 @@ interface PlayerMonster {
   equipment: Record<string, string | null>;
   status: string | null;
   type?: string;
+}
+
+interface PokedexData {
+  seen: string[];
+  owned: string[];
 }
 
 interface SkillEffect {
@@ -211,6 +222,10 @@ interface PlayerData {
   inventoryCapacity: number;
   equipmentStats: Partial<BaseStats>;
   money: number;
+  level: number;
+  exp: number;
+  expToNext: number;
+  pokedex: PokedexData;
   location: { x: number; y: number };
   quests: ActiveQuest[];
   completedQuests: string[];
@@ -469,12 +484,29 @@ interface MapRenderState {
 }
 
 interface BattleActionPayload {
+  type?: string;
   action?: string;
   source?: BattleMonster | null;
   target?: BattleMonster | null;
+  monster?: BattleMonster | null;
+  enemyMonster?: BattleMonster | null;
+  faintedMonster?: BattleMonster | null;
+  availableMonsters?: BattleMonster[];
+  title?: string;
+  prompt?: string;
+  availableActions?: {
+    skills?: ResolvedSkill[];
+    canSwitch?: boolean;
+    canUseItems?: boolean;
+    canFlee?: boolean;
+  };
   skillId?: string;
   itemId?: string;
   quantity?: number;
+  item?: ItemTemplate | InventoryItem | null;
+  messages?: string[];
+  success?: boolean;
+  shakes?: number;
   result?: SkillExecutionResult;
 }
 
@@ -512,8 +544,36 @@ interface BattleUIBattleMenuItem extends UISelectableMenuItem {
 interface BattleResult {
   result: 'victory' | 'defeat' | 'flee' | 'capture';
   exp: number;
+  playerExp?: number;
+  playerLevelUps?: number[];
+  victory?: boolean;
+  monsterId?: string;
   rewards: string[];
   battleLog: string[];
+  summary?: BattleRewardSummary;
+}
+
+interface BattleRewardSummaryItem {
+  itemId: string;
+  quantity: number;
+  sourceMonsterId?: string;
+  sourceLevel?: number;
+}
+
+interface BattleRewardSummaryMonsterLevelUp {
+  monsterId: string;
+  nickname: string;
+  from: number;
+  to: number;
+}
+
+interface BattleRewardSummary {
+  result: 'victory' | 'defeat' | 'flee' | 'capture';
+  expGained: number;
+  moneyGained: number;
+  items: BattleRewardSummaryItem[];
+  playerLevelDelta: number;
+  monsterLevelUps: BattleRewardSummaryMonsterLevelUp[];
 }
 
 interface SaveFile {
@@ -530,6 +590,7 @@ interface SaveInfo {
   version?: string;
   gameTime?: number;
   playerName?: string;
+  playerLevel?: number;
   error?: unknown;
 }
 
@@ -544,15 +605,17 @@ interface GameEventPayloadMap {
   'battle:start': BattleStartPayload;
   'battle:action': BattleActionPayload;
   'battle:damage': BattleDamagePayload;
-  'battle:end': { victory?: boolean; monsterId?: string; result?: BattleResult['result']; exp?: number; rewards?: string[]; battleLog?: string[] };
+  'battle:end': BattleResult;
   'battle:use_skill': { skillId?: string };
   'battle:use_item': { item?: any };
   'battle:use_bag': undefined;
   'battle:flee': undefined;
-  'battle:switch_monster': undefined;
+  'battle:switch_monster': { monsterId?: string; forced?: boolean };
+  'battle:select_lead_monster': { monsterId?: string };
   'battle:catch_complete': { success?: boolean };
   'battle:capture_decision': { choice?: string };
   'battle:finish_capture': undefined;
+  'battle:result_close': { result?: BattleResult['result'] };
   'shop:buy': { itemId?: string; quantity?: number };
   'shop:sell': { inventoryUid?: string; quantity?: number };
   'shop:close': undefined;
@@ -714,7 +777,6 @@ interface UIManager {
   state: UIStateValue;
   dialogVisible: boolean;
   currentDialog: UIDialogState | null;
-  currentMenu: UIMenuState | null;
   notifications: UINotification[];
   init(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void;
   showDialog(data: DialogStartPayload): void;
@@ -723,6 +785,11 @@ interface UIManager {
   handleInput(event: KeyboardEvent): boolean;
   dialogNext(): boolean;
   selectDialogChoice(index: number): void;
+  openMenu(menuType: string): void;
+  closeMenu(): void;
+  getMapHUDState(): any;
+  renderMapHUD(): void;
+  renderNotifications(): void;
   getState(): UIStateValue;
   render(): void;
 }

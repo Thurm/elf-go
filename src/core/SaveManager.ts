@@ -73,10 +73,12 @@ class SaveManager {
                 return null;
             }
 
+            const normalizedGameState = this.normalizeGameState(this.deepClone(saveData.gameState));
+
             console.log(`Game loaded from slot ${slot}`);
             eventBus.emit(GameEvents.DATA_LOAD, { slot: slot, success: true, data: saveData });
 
-            return saveData.gameState;
+            return normalizedGameState;
         } catch (error: unknown) {
             console.error('Failed to load game:', error);
             eventBus.emit(GameEvents.DATA_LOAD, { slot: slot, success: false, error: error });
@@ -132,17 +134,53 @@ class SaveManager {
                 return { slot: slot, empty: true, error: new Error('Invalid save data format') };
             }
 
+            const gameState = this.normalizeGameState(this.deepClone(saveData.gameState));
+
             return {
                 slot: slot,
                 empty: false,
                 timestamp: saveData.timestamp,
                 version: saveData.version,
-                gameTime: saveData.gameState?.gameTime || 0,
-                playerName: saveData.gameState?.player?.name || '未知'
+                gameTime: gameState.gameTime || 0,
+                playerName: gameState.player?.name || '未知',
+                playerLevel: gameState.player?.level || 1
             };
         } catch (error: unknown) {
             return { slot: slot, empty: true, error: error };
         }
+    }
+
+    normalizeGameState(gameState: GameStateData): GameStateData {
+        if (!gameState.player) {
+            gameState.player = createInitialPlayer();
+            return gameState;
+        }
+
+        const player = ensurePlayerProgressData(gameState.player);
+
+        if (!Array.isArray(player.party)) {
+            player.party = [];
+        }
+
+        if (!Array.isArray(player.inventory)) {
+            player.inventory = [];
+        }
+
+        if (!Array.isArray(player.quests)) {
+            player.quests = [];
+        }
+
+        if (!Array.isArray(player.completedQuests)) {
+            player.completedQuests = [];
+        }
+
+        player.party.forEach(monster => {
+            if (monster?.monsterId) {
+                registerMonsterInPokedex(player, monster.monsterId, 'owned');
+            }
+        });
+
+        return gameState;
     }
 
     /**

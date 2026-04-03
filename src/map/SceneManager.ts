@@ -109,10 +109,23 @@ class SceneManager {
      * 设置事件监听
      */
     setupEventListeners() {
-        // 监听传送事件
-        eventBus.on(GameEvents.MAP_PORTAL, (data) => {
-            this.handlePortal(data);
-        });
+        // 场景切换统一由 MapSystem 编排，这里不再直接消费 MAP_PORTAL
+    }
+
+    /**
+     * 获取地图数据但不提交为当前场景
+     * @param {string} mapId - 地图ID
+     * @returns {Object|null} 地图数据
+     */
+    getMapData(mapId) {
+        let mapData = this.mapCache[mapId];
+
+        if (!mapData && typeof MapTemplates !== 'undefined' && MapTemplates[mapId]) {
+            mapData = this.buildMapData(MapTemplates[mapId]);
+            this.mapCache[mapId] = mapData;
+        }
+
+        return mapData || null;
     }
 
     /**
@@ -124,14 +137,7 @@ class SceneManager {
     loadMap(mapId, options = {}) {
         console.log(`Loading map: ${mapId}`);
 
-        // 检查缓存
-        let mapData = this.mapCache[mapId];
-
-        // 如果缓存中没有，尝试从模板加载
-        if (!mapData && typeof MapTemplates !== 'undefined' && MapTemplates[mapId]) {
-            mapData = this.buildMapData(MapTemplates[mapId]);
-            this.mapCache[mapId] = mapData;
-        }
+        const mapData = this.getMapData(mapId);
 
         if (!mapData) {
             console.error(`Map not found: ${mapId}`);

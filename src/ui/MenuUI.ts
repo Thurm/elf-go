@@ -30,6 +30,9 @@ function safeGetAudioManager() {
 const MenuUIState = {
     CLOSED: 'closed',
     MAIN_MENU: 'main_menu',
+    PLAYER_INFO_MENU: 'player_info_menu',
+    POKEDEX_MENU: 'pokedex_menu',
+    POKEDEX_DETAIL_MENU: 'pokedex_detail_menu',
     SAVE_MENU: 'save_menu',
     LOAD_MENU: 'load_menu',
     SETTINGS_MENU: 'settings_menu',
@@ -53,6 +56,7 @@ class MenuUI {
         this.menuStack = [];
         this.currentMenu = null;
         this.selectedIndex = 0;
+        this.currentPokedexMonsterId = null;
 
         // 存档信息缓存
         this.saveInfos = [];
@@ -126,6 +130,12 @@ class MenuUI {
             case 'save':
                 this._openSaveMenu();
                 break;
+            case 'player_info':
+                this._openPlayerInfoMenu();
+                break;
+            case 'pokedex':
+                this._openPokedexMenu();
+                break;
             case 'load':
                 this._openLoadMenu();
                 break;
@@ -162,6 +172,8 @@ class MenuUI {
             ]
             : [
                 { id: 'resume', text: '继续游戏', action: 'resume' },
+                { id: 'player_info', text: '玩家信息', action: 'player_info' },
+                { id: 'pokedex', text: '图鉴', action: 'pokedex' },
                 { id: 'party', text: '怪兽', action: 'party' },
                 { id: 'bag', text: '背包', action: 'bag' },
                 { id: 'save', text: '保存', action: 'save' },
@@ -175,6 +187,91 @@ class MenuUI {
             title: isTitle ? '精灵冒险 RPG' : '游戏菜单',
             items: items,
             isTitle: isTitle
+        };
+        this.selectedIndex = 0;
+    }
+
+    /**
+     * 打开玩家信息菜单
+     * @private
+     */
+    _openPlayerInfoMenu() {
+        this.state = MenuUIState.PLAYER_INFO_MENU;
+        this.currentMenu = {
+            type: 'player_info',
+            title: '玩家信息',
+            items: [
+                { id: 'back', text: '返回', action: 'back' }
+            ]
+        };
+        this.selectedIndex = 0;
+    }
+
+    /**
+     * 打开图鉴菜单
+     * @private
+     */
+    _openPokedexMenu() {
+        this.state = MenuUIState.POKEDEX_MENU;
+        this.currentPokedexMonsterId = null;
+        this.currentMenu = {
+            type: 'pokedex',
+            title: '精灵图鉴',
+            items: this._createPokedexItems()
+        };
+        this.selectedIndex = 0;
+    }
+
+    /**
+     * 创建图鉴条目
+     * @returns {UISelectableMenuItem[]}
+     * @private
+     */
+    _createPokedexItems() {
+        const gameState = gameStateMachine.getGameState();
+        const player = gameState?.player;
+        const seenSet = new Set(player?.pokedex?.seen || []);
+        const ownedSet = new Set(player?.pokedex?.owned || []);
+
+        const items: UISelectableMenuItem[] = Object.values(MonsterTemplates).map((monster, index) => {
+            const isOwned = ownedSet.has(monster.id);
+            const isSeen = isOwned || seenSet.has(monster.id);
+            const statusText = isOwned ? '已拥有' : (isSeen ? '已遇到' : '未遇到');
+            const displayName = isSeen ? monster.name : '???';
+
+            return {
+                id: `pokedex_${monster.id}`,
+                text: `${String(index + 1).padStart(3, '0')} ${displayName} [${statusText}]`,
+                action: 'view_pokedex_entry',
+                index
+            };
+        });
+
+        items.push({ id: 'back', text: '返回', action: 'back' });
+        return items;
+    }
+
+    /**
+     * 打开图鉴详情
+     * @param {string} monsterId
+     * @private
+     */
+    _openPokedexDetail(monsterId) {
+        const monster = MonsterTemplates[monsterId];
+        if (!monster) {
+            uiManager.showNotification('图鉴条目不存在', 'warning');
+            return;
+        }
+
+        this.currentPokedexMonsterId = monsterId;
+        this.state = MenuUIState.POKEDEX_DETAIL_MENU;
+        this.currentMenu = {
+            type: 'pokedex_detail',
+            title: `图鉴详情 - ${monster.name}`,
+            items: [
+                { id: 'back', text: '返回', action: 'back' }
+            ],
+            monster
         };
         this.selectedIndex = 0;
     }
@@ -342,6 +439,7 @@ class MenuUI {
         this.menuStack = [];
         this.selectedIndex = 0;
         this.editingSetting = null;
+        this.currentPokedexMonsterId = null;
         if (window.SoundID && window.SoundID.MENU_CLOSE) {
             window.SoundID && menuSafePlaySound(window.SoundID.MENU_CLOSE);
         }
@@ -439,6 +537,14 @@ class MenuUI {
                 this.openMenu('save');
                 break;
 
+            case 'player_info':
+                this.openMenu('player_info');
+                break;
+
+            case 'pokedex':
+                this.openMenu('pokedex');
+                break;
+
             case 'load':
                 this.openMenu('load');
                 break;
@@ -463,6 +569,17 @@ class MenuUI {
             case 'view_monster':
                 // 查看怪兽详情
                 uiManager.showNotification(`查看 ${item.monster.nickname || item.monster.name} 的详情`, 'info');
+                break;
+
+            case 'view_pokedex_entry':
+                if (this.currentMenu) {
+                    this.menuStack.push({
+                        state: this.state,
+                        menu: this.currentMenu,
+                        selectedIndex: this.selectedIndex
+                    });
+                }
+                this._openPokedexDetail(item.id.replace(/^pokedex_/, ''));
                 break;
 
             case 'use_item':
@@ -595,6 +712,15 @@ class MenuUI {
             case 'bag':
                 this._renderBagMenu();
                 break;
+            case 'pokedex':
+                this._renderPokedexMenu();
+                break;
+            case 'pokedex_detail':
+                this._renderPokedexDetail();
+                break;
+            case 'player_info':
+                this._renderPlayerInfoMenu();
+                break;
             default:
                 this._renderGenericMenu();
         }
@@ -609,7 +735,7 @@ class MenuUI {
         const canvasWidth = this.canvas.width;
         const canvasHeight = this.canvas.height;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = 'rgba(9, 16, 21, 0.72)';
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     }
 
@@ -642,30 +768,22 @@ class MenuUI {
         const canvasWidth = this.canvas.width;
         const canvasHeight = this.canvas.height;
 
-        // 渐变背景
         const gradient = ctx.createLinearGradient(0, 0, 0, canvasHeight);
-        gradient.addColorStop(0, '#1E3A5F');
-        gradient.addColorStop(0.5, '#3B82F6');
-        gradient.addColorStop(1, '#93C5FD');
+        gradient.addColorStop(0, UIColors.PANEL_DEEP);
+        gradient.addColorStop(1, UIColors.PANEL);
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
         // 渲染游戏标题
         const title = this.currentMenu.title;
-        ctx.font = 'bold 48px monospace';
+        ctx.font = 'bold 38px monospace';
         ctx.textAlign = 'center';
-
-        // 标题发光效果
-        ctx.shadowColor = UIColors.GOLD;
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = UIColors.GOLD;
+        ctx.fillStyle = UIColors.TEXT;
         ctx.fillText(title, canvasWidth / 2, canvasHeight * 0.3);
 
-        // 副标题/装饰
-        ctx.shadowBlur = 0;
-        ctx.font = '20px monospace';
-        ctx.fillStyle = UIColors.LIGHT_GRAY;
-        ctx.fillText('～ 精灵冒险之旅 ～', canvasWidth / 2, canvasHeight * 0.38);
+        ctx.font = '14px monospace';
+        ctx.fillStyle = UIColors.TEXT_MUTED;
+        ctx.fillText('像素冒险 · 旅途开始', canvasWidth / 2, canvasHeight * 0.38);
 
         // 渲染菜单
         const menuWidth = 300;
@@ -685,11 +803,14 @@ class MenuUI {
             const itemY = menuY + 25 + i * itemHeight;
 
             if (isSelected) {
-                ctx.fillStyle = UIColors.PRIMARY_BLUE;
+                ctx.fillStyle = UIColors.PANEL_ALT;
                 ctx.fillRect(menuX + 20, itemY - 5, menuWidth - 40, itemHeight - 10);
+                ctx.strokeStyle = UIColors.ACCENT;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(menuX + 20, itemY - 5, menuWidth - 40, itemHeight - 10);
                 ctx.fillStyle = UIColors.TEXT;
             } else {
-                ctx.fillStyle = UIColors.LIGHT_GRAY;
+                ctx.fillStyle = UIColors.TEXT_SOFT;
             }
 
             const prefix = isSelected ? '▶ ' : '  ';
@@ -699,7 +820,7 @@ class MenuUI {
         // 版权信息
         ctx.font = '14px monospace';
         ctx.textAlign = 'center';
-        ctx.fillStyle = UIColors.MEDIUM_GRAY;
+        ctx.fillStyle = UIColors.TEXT_MUTED;
         ctx.fillText('Version 1.0.0', canvasWidth / 2, canvasHeight - 50);
         ctx.fillText('Copyright (c) 2026 Team RPG', canvasWidth / 2, canvasHeight - 30);
     }
@@ -725,6 +846,7 @@ class MenuUI {
         const player = gameState?.player;
         const party = player?.party || [];
         const firstMonster = party[0];
+        const pokedexProgress = player ? getPokedexProgress(player) : { seen: 0, owned: 0, total: 0 };
 
         ctx.font = '18px monospace';
         ctx.textAlign = 'left';
@@ -749,6 +871,14 @@ class MenuUI {
         const money = player?.money || 0;
         ctx.fillStyle = UIColors.GOLD;
         ctx.fillText(`金钱: ￥${money}`, infoX + 20, lineY);
+
+        lineY += 30;
+        ctx.fillStyle = UIColors.LIGHT_BLUE;
+        ctx.fillText(`玩家 Lv.${player?.level || 1}`, infoX + 20, lineY);
+
+        lineY += 30;
+        ctx.fillStyle = UIColors.LIGHT_GRAY;
+        ctx.fillText(`图鉴: ${pokedexProgress.owned}/${pokedexProgress.total}`, infoX + 20, lineY);
     }
 
     /**
@@ -815,8 +945,11 @@ class MenuUI {
 
         // 选中高亮
         if (isSelected) {
-            ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+            ctx.fillStyle = UIColors.PANEL_ALT;
             ctx.fillRect(x - 5, y - 5, width + 10, height + 10);
+            ctx.strokeStyle = UIColors.ACCENT;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x - 5, y - 5, width + 10, height + 10);
         }
 
         // 绘制槽位框
@@ -843,10 +976,11 @@ class MenuUI {
             ctx.fillText(`玩家: ${info.playerName}`, x + 20, y + 60);
             ctx.fillText(`游戏时间: ${gameTime}`, x + width / 2, y + 60);
 
-            // 保存时间
+            // 等级与保存时间
             const saveDate = new Date(info.timestamp);
             const dateStr = saveDate.toLocaleString('zh-CN');
-            ctx.fillText(`保存时间: ${dateStr}`, x + 20, y + 85);
+            ctx.fillText(`等级: Lv.${info.playerLevel || 1}`, x + 20, y + 85);
+            ctx.fillText(`保存时间: ${dateStr}`, x + width / 2, y + 85);
 
             // 分隔线
             ctx.strokeStyle = UIColors.MEDIUM_GRAY;
@@ -910,11 +1044,14 @@ class MenuUI {
 
             // 选中高亮
             if (isSelected) {
-                ctx.fillStyle = isEditing ? UIColors.DARK_BLUE : UIColors.PRIMARY_BLUE;
+                ctx.fillStyle = isEditing ? UIColors.PANEL_DEEP : UIColors.PANEL_ALT;
                 ctx.fillRect(menuX + 20, itemY - 5, menuWidth - 40, itemHeight - 10);
+                ctx.strokeStyle = isEditing ? UIColors.WARNING : UIColors.ACCENT;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(menuX + 20, itemY - 5, menuWidth - 40, itemHeight - 10);
                 ctx.fillStyle = UIColors.TEXT;
             } else {
-                ctx.fillStyle = UIColors.LIGHT_GRAY;
+                ctx.fillStyle = UIColors.TEXT_SOFT;
             }
 
             const prefix = isSelected ? '▶ ' : '  ';
@@ -971,6 +1108,145 @@ class MenuUI {
     }
 
     /**
+     * 渲染图鉴菜单
+     * @private
+     */
+    _renderPokedexMenu() {
+        this._renderGenericMenu();
+    }
+
+    /**
+     * 渲染图鉴详情
+     * @private
+     */
+    _renderPokedexDetail() {
+        const ctx = this.ctx;
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        const gameState = gameStateMachine.getGameState();
+        const player = gameState?.player;
+        const monster = this.currentPokedexMonsterId ? MonsterTemplates[this.currentPokedexMonsterId] : null;
+
+        if (!monster) {
+            this._renderGenericMenu();
+            return;
+        }
+
+        const isOwned = Boolean(player?.pokedex?.owned?.includes(monster.id));
+        const isSeen = isOwned || Boolean(player?.pokedex?.seen?.includes(monster.id));
+
+        const panelX = 80;
+        const panelY = 70;
+        const panelWidth = canvasWidth - 160;
+        const panelHeight = canvasHeight - 140;
+
+        this._drawDialogBox(panelX, panelY, panelWidth, panelHeight);
+
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 26px monospace';
+        ctx.fillStyle = isSeen ? UIColors.TEXT : UIColors.MEDIUM_GRAY;
+        ctx.fillText(isSeen ? monster.name : '???', panelX + 30, panelY + 45);
+
+        ctx.font = '18px monospace';
+        ctx.fillStyle = UIColors.LIGHT_BLUE;
+        ctx.fillText(`编号: ${Object.keys(MonsterTemplates).indexOf(monster.id) + 1}`, panelX + 30, panelY + 85);
+        ctx.fillText(`属性: ${isSeen ? monster.type : '???'}`, panelX + 30, panelY + 115);
+
+        ctx.fillStyle = isOwned ? '#22c55e' : (isSeen ? UIColors.GOLD : UIColors.MEDIUM_GRAY);
+        ctx.fillText(`状态: ${isOwned ? '已拥有' : (isSeen ? '已遇到' : '未遇到')}`, panelX + 30, panelY + 145);
+
+        ctx.fillStyle = UIColors.LIGHT_GRAY;
+        if (!isSeen) {
+            ctx.fillText('尚未记录到该怪兽的详细资料。', panelX + 30, panelY + 205);
+        } else if (!isOwned) {
+            ctx.fillText(monster.profile?.description || '已记录到基础情报，但尚未完全解析。', panelX + 30, panelY + 205);
+            ctx.fillText(`栖息地: ${monster.profile?.habitat || '未知'}`, panelX + 30, panelY + 240);
+            ctx.fillText(`性格: ${monster.profile?.temperament || '未知'}`, panelX + 30, panelY + 275);
+            ctx.fillText('更多能力数据需要收服后解锁。', panelX + 30, panelY + 325);
+        } else {
+            ctx.fillText(monster.profile?.description || '暂无描述', panelX + 30, panelY + 205);
+            ctx.fillText(`栖息地: ${monster.profile?.habitat || '未知'}`, panelX + 30, panelY + 240);
+            ctx.fillText(`性格: ${monster.profile?.temperament || '未知'}`, panelX + 30, panelY + 275);
+            ctx.fillText(`HP ${monster.baseStats.hp}  ATK ${monster.baseStats.atk}  DEF ${monster.baseStats.def}`, panelX + 30, panelY + 330);
+            ctx.fillText(`SPA ${monster.baseStats.spAtk}  SPD ${monster.baseStats.spDef}  SPE ${monster.baseStats.spd}`, panelX + 30, panelY + 365);
+            ctx.fillText(`技能: ${monster.skills.map(skillId => SkillTemplates[skillId]?.name || skillId).join(' / ')}`, panelX + 30, panelY + 420);
+        }
+
+        const backSelected = this.selectedIndex === 0;
+        const backX = panelX + panelWidth - 160;
+        const backY = panelY + panelHeight - 70;
+        ctx.fillStyle = backSelected ? UIColors.PRIMARY_BLUE : UIColors.DARK_GRAY;
+        ctx.fillRect(backX, backY, 110, 40);
+        ctx.fillStyle = UIColors.TEXT;
+        ctx.textAlign = 'center';
+        ctx.fillText(`${backSelected ? '▶ ' : ''}返回`, backX + 55, backY + 26);
+    }
+
+    /**
+     * 渲染玩家信息菜单
+     * @private
+     */
+    _renderPlayerInfoMenu() {
+        const ctx = this.ctx;
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        const gameState = gameStateMachine.getGameState();
+        const player = gameState?.player;
+        const pokedex = player ? getPokedexProgress(player) : { seen: 0, owned: 0, total: 0 };
+        const exp = player?.exp || 0;
+        const expToNext = player?.expToNext || 1;
+        const expRatio = Math.max(0, Math.min(1, expToNext > 0 ? exp / expToNext : 0));
+
+        const panelX = 90;
+        const panelY = 80;
+        const panelWidth = canvasWidth - 180;
+        const panelHeight = canvasHeight - 180;
+
+        this._drawDialogBox(panelX, panelY, panelWidth, panelHeight);
+
+        ctx.font = 'bold 26px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = UIColors.TEXT;
+        ctx.fillText('玩家信息', canvasWidth / 2, panelY + 40);
+
+        ctx.textAlign = 'left';
+        ctx.font = '20px monospace';
+        ctx.fillStyle = UIColors.LIGHT_GRAY;
+        ctx.fillText(`姓名: ${player?.name || '玩家'}`, panelX + 30, panelY + 90);
+        ctx.fillText(`等级: Lv.${player?.level || 1}`, panelX + 30, panelY + 125);
+        ctx.fillStyle = UIColors.GOLD;
+        ctx.fillText(`金钱: ￥${player?.money || 0}`, panelX + 30, panelY + 160);
+
+        ctx.fillStyle = UIColors.TEXT;
+        ctx.fillText(`训练家经验: ${exp} / ${expToNext}`, panelX + 30, panelY + 210);
+
+        ctx.fillStyle = UIColors.DARK_GRAY;
+        ctx.fillRect(panelX + 30, panelY + 225, panelWidth - 60, 20);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(panelX + 30, panelY + 225, (panelWidth - 60) * expRatio, 20);
+        ctx.strokeStyle = UIColors.LIGHT_BLUE;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(panelX + 30, panelY + 225, panelWidth - 60, 20);
+
+        ctx.font = '18px monospace';
+        ctx.fillStyle = UIColors.LIGHT_BLUE;
+        ctx.fillText(`图鉴已见: ${pokedex.seen} / ${pokedex.total}`, panelX + 30, panelY + 290);
+        ctx.fillText(`图鉴拥有: ${pokedex.owned} / ${pokedex.total}`, panelX + 30, panelY + 325);
+        ctx.fillStyle = UIColors.LIGHT_GRAY;
+        ctx.fillText(`队伍数量: ${(player?.party || []).length}`, panelX + 30, panelY + 360);
+        ctx.fillText(`进行中任务: ${(player?.quests || []).length}`, panelX + 30, panelY + 395);
+
+        const backSelected = this.selectedIndex === 0;
+        const backX = panelX + panelWidth - 160;
+        const backY = panelY + panelHeight - 70;
+        ctx.fillStyle = backSelected ? UIColors.PRIMARY_BLUE : UIColors.DARK_GRAY;
+        ctx.fillRect(backX, backY, 110, 40);
+        ctx.fillStyle = UIColors.TEXT;
+        ctx.textAlign = 'center';
+        ctx.fillText(`${backSelected ? '▶ ' : ''}返回`, backX + 55, backY + 26);
+    }
+
+    /**
      * 渲染通用菜单
      * @private
      */
@@ -1009,11 +1285,14 @@ class MenuUI {
             const itemY = startY + i * itemHeight;
 
             if (isSelected) {
-                ctx.fillStyle = UIColors.PRIMARY_BLUE;
+                ctx.fillStyle = UIColors.PANEL_ALT;
                 ctx.fillRect(menuX + 15, itemY - 5, menuWidth - 30, itemHeight - 10);
+                ctx.strokeStyle = UIColors.ACCENT;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(menuX + 15, itemY - 5, menuWidth - 30, itemHeight - 10);
                 ctx.fillStyle = UIColors.TEXT;
             } else {
-                ctx.fillStyle = UIColors.LIGHT_GRAY;
+                ctx.fillStyle = UIColors.TEXT_SOFT;
             }
 
             const prefix = isSelected ? '▶ ' : '  ';
@@ -1032,21 +1311,17 @@ class MenuUI {
     _drawDialogBox(x, y, width, height) {
         const ctx = this.ctx;
 
-        // 阴影
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = UIColors.SHADOW;
         ctx.fillRect(x + 4, y + 4, width, height);
 
-        // 主背景
-        ctx.fillStyle = UIColors.BACKGROUND;
+        ctx.fillStyle = UIColors.PANEL;
         ctx.fillRect(x, y, width, height);
 
-        // 边框
-        ctx.strokeStyle = UIColors.PRIMARY_BLUE;
+        ctx.strokeStyle = UIColors.BORDER_STRONG;
         ctx.lineWidth = 3;
         ctx.strokeRect(x, y, width, height);
 
-        // 内边框
-        ctx.strokeStyle = UIColors.LIGHT_BLUE;
+        ctx.strokeStyle = UIColors.BORDER;
         ctx.lineWidth = 1;
         ctx.strokeRect(x + 4, y + 4, width - 8, height - 8);
     }

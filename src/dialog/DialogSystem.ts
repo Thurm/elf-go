@@ -333,6 +333,7 @@ class DialogSystem {
                 gameState.player.party = [];
             }
             gameState.player.party.push(monster);
+            registerMonsterInPokedex(gameState.player, data.monsterId, 'owned');
             const starterFlags = {
                 selected_fire: data.monsterId === 'fire_dragon',
                 selected_water: data.monsterId === 'water_dragon',
@@ -342,7 +343,10 @@ class DialogSystem {
                 starter_monster_nickname: monster.nickname
             };
 
-            gameStateMachine.updatePlayer({ party: gameState.player.party });
+            gameStateMachine.updatePlayer({
+                party: gameState.player.party,
+                pokedex: gameState.player.pokedex
+            });
             gameStateMachine.updateGameState({
                 flags: {
                     ...gameState.flags,
@@ -401,14 +405,22 @@ class DialogSystem {
             return;
         }
 
-        const inventory = gameState.player.inventory || [];
         let totalGold = 0;
+        let usedInventoryManager = false;
 
         for (const item of data.items) {
             if (item.itemId === 'gold') {
                 totalGold += item.quantity;
             } else {
-                this.addToInventory(inventory, item.itemId, item.quantity);
+                if (typeof inventoryManager !== 'undefined' && inventoryManager.addItem) {
+                    inventoryManager.addItem(item.itemId, item.quantity);
+                    usedInventoryManager = true;
+                } else {
+                    if (!gameState.player.inventory) {
+                        gameState.player.inventory = [];
+                    }
+                    this.addToInventory(gameState.player.inventory, item.itemId, item.quantity);
+                }
             }
         }
 
@@ -416,10 +428,16 @@ class DialogSystem {
             gameState.player.money = (gameState.player.money || 0) + totalGold;
         }
 
-        gameStateMachine.updatePlayer({
-            inventory: inventory,
-            money: gameState.player.money
-        });
+        if (usedInventoryManager) {
+            gameStateMachine.updatePlayer({
+                money: gameState.player.money
+            });
+        } else {
+            gameStateMachine.updatePlayer({
+                inventory: gameState.player.inventory,
+                money: gameState.player.money
+            });
+        }
 
         console.log(`[DialogSystem] 获得物品:`, data.items);
         eventBus.emit(GameEvents.UI_NOTIFICATION, {
