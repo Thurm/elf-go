@@ -149,6 +149,59 @@ npm run test:e2e
 
 ---
 
+## Git 分支与 PR 工作流
+
+**严格禁止直接 push 到 main 分支！**
+
+### 分支开发流程
+
+1. **创建 feature 分支**
+   - 从 main 分支创建新分支
+   - 分支名按改动内容抽象提炼，使用 kebab-case：
+     - `feature/xxx` - 新功能开发
+     - `fix/xxx` - Bug 修复
+     - `refactor/xxx` - 重构优化
+     - `docs/xxx` - 文档更新
+   - 示例：`feature/monster-sprite-redesign`、`fix/battle-ui-crash`
+
+2. **开发与提交**
+   - 在 feature 分支上进行开发
+   - 按提交规范提交代码
+
+3. **发起 Pull Request**
+   - 完成开发后 push feature 分支到远程
+   - 发起 PR，标题清晰描述改动内容
+   - 等待用户 review 并合并
+
+4. **合并后清理**
+   - PR 合并到 main 后，删除 feature 分支
+   - 本地切换回 main 分支并 pull 最新代码
+
+### 示例工作流
+
+```bash
+# 1. 从 main 创建新分支
+git checkout main
+git pull origin main
+git checkout -b feature/monster-sprite-redesign
+
+# 2. 开发、提交
+git add <files>
+git commit -m "feat: 优化怪兽像素精灵形象设计"
+
+# 3. 推送分支并发起 PR
+git push origin feature/monster-sprite-redesign
+# 然后在 GitHub 上发起 PR 等待 review
+
+# 4. PR 合并后清理
+git checkout main
+git pull origin main
+git branch -d feature/monster-sprite-redesign
+git push origin --delete feature/monster-sprite-redesign
+```
+
+---
+
 ## 注意事项
 
 - 源码在 src/ (.ts)，编译输出在 dist/ (.js)
