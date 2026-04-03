@@ -81,6 +81,9 @@ class PlayerController {
 
         // 交互冷却（防止连续交互）
         this.interactCooldown = 0;
+
+        // 传送/过渡期间输入锁
+        this.inputLocked = false;
     }
 
     /**
@@ -114,6 +117,32 @@ class PlayerController {
         this.npcs = mapData?.npcs || [];
         console.log('[PlayerController] Map set to', mapData?.id, 'with', this.npcs.length, 'NPCs');
         this.buildCollisionMap();
+    }
+
+    /**
+     * 设置输入锁状态
+     * @param {boolean} locked - 是否锁定
+     */
+    setInputLocked(locked) {
+        this.inputLocked = locked;
+
+        if (locked) {
+            this.clearInputState();
+            this.moveState.isMoving = false;
+            this.moveState.moveProgress = 0;
+            this.player.moving = false;
+        }
+    }
+
+    /**
+     * 清空输入状态
+     */
+    clearInputState() {
+        this.inputState.up = false;
+        this.inputState.down = false;
+        this.inputState.left = false;
+        this.inputState.right = false;
+        this.inputState.interact = false;
     }
 
     /**
@@ -408,6 +437,11 @@ class PlayerController {
     update(deltaTime) {
         if (!this.initialized) return;
 
+        if (this.inputLocked) {
+            this.player.moving = false;
+            return;
+        }
+
         // 检查全局游戏状态（菜单、对话、战斗等状态下不能移动）
         if (typeof gameStateMachine !== 'undefined' && gameStateMachine.getCurrentState) {
             const gameState = gameStateMachine.getCurrentState();
@@ -587,7 +621,7 @@ class PlayerController {
      * 处理传送点
      */
     handlePortal() {
-        if (!this.currentMap?.portals) return;
+        if (this.inputLocked || !this.currentMap?.portals) return;
 
         const portal = this.currentMap.portals.find(
             p => p.x === this.player.x && p.y === this.player.y
@@ -638,6 +672,8 @@ class PlayerController {
      * 尝试交互
      */
     tryInteract() {
+        if (this.inputLocked) return;
+
         console.log('[PlayerController] tryInteract called');
         this.interactCooldown = 0.3; // 300ms 冷却
 
@@ -737,6 +773,35 @@ class PlayerController {
             dialogId: npc.dialogId,
             shopId: npc.shopId
         }));
+    }
+
+    /**
+     * 获取当前地图交互提示
+     * @returns {string} HUD 交互提示
+     */
+    getInteractionHint() {
+        if (this.inputLocked) {
+            return '切换中...';
+        }
+
+        const vec = DirectionVectors[this.player.direction] || { x: 0, y: 0 };
+        const frontX = this.player.x + vec.x;
+        const frontY = this.player.y + vec.y;
+
+        const npc = this.getNPCAt(frontX, frontY);
+        if (npc) {
+            return npc.shopId ? 'Z 商店 / 对话 · Esc 菜单' : 'Z 对话 · Esc 菜单';
+        }
+
+        const portal = this.currentMap?.portals?.find((p) =>
+            (p.x === this.player.x && p.y === this.player.y) ||
+            (p.x === frontX && p.y === frontY)
+        );
+        if (portal) {
+            return 'Z 进入区域 · Esc 菜单';
+        }
+
+        return 'Z 交互 · Esc 菜单';
     }
 
     /**

@@ -1,46 +1,55 @@
 /**
- * UI 管理器 - 负责所有 UI 组件的管理和渲染
- * 包括菜单界面、对话框、状态显示等
+ * UI 管理器 - 负责对话框、通知与轻量级 HUD 的管理和渲染
+ * 菜单系统由 MenuUI 独立接管
  */
 
-// UI 颜色常量 - 复古未来主义霓虹像素风
+// UI 颜色常量 - 简约像素风
 const UIColors = {
-    // 霓虹主色调
-    NEON_PINK: '#ff2a6d',
-    NEON_CYAN: '#05d9e8',
-    NEON_PURPLE: '#d300c5',
-    NEON_YELLOW: '#f9f002',
-    NEON_GREEN: '#39ff14',
-    NEON_ORANGE: '#ff6b35',
-
-    // 复古未来主义色系
-    DEEP_SPACE: '#0d0221',
-    COSMIC_PURPLE: '#2d1b4e',
-    VOID_BLACK: '#0a0a0f',
-    STARLIGHT: '#f0f0ff',
-    ELECTRIC_BLUE: '#1b98e0',
+    PANEL: '#162029',
+    PANEL_ALT: '#1d2a35',
+    PANEL_DEEP: '#0d151c',
+    BORDER: '#587284',
+    BORDER_STRONG: '#9cb5c7',
+    ACCENT: '#8fd3ff',
+    ACCENT_DIM: '#6ea6c1',
+    TEXT: '#f2f5f7',
+    TEXT_SOFT: '#c0cad2',
+    TEXT_MUTED: '#8e9ba7',
+    SUCCESS: '#9bd18b',
+    WARNING: '#e6c97a',
+    DANGER: '#d98873',
+    SHADOW: 'rgba(0, 0, 0, 0.35)',
 
     // 兼容旧名称的别名
-    PRIMARY_BLUE: '#05d9e8',
-    DARK_BLUE: '#2d1b4e',
-    LIGHT_BLUE: '#1b98e0',
-    PRIMARY_RED: '#ff2a6d',
-    DARK_RED: '#d300c5',
-    PRIMARY_GREEN: '#39ff14',
-    DARK_GREEN: '#22c55e',
-    PRIMARY_YELLOW: '#f9f002',
-    GOLD: '#f9f002',
-    BACKGROUND: '#0d0221',
-    DARK_GRAY: '#2d1b4e',
-    MEDIUM_GRAY: '#4a3a6a',
-    LIGHT_GRAY: '#9ca3af',
-    TEXT: '#f0f0ff'
+    NEON_PINK: '#d98873',
+    NEON_CYAN: '#8fd3ff',
+    NEON_PURPLE: '#9d8fc9',
+    NEON_YELLOW: '#e6c97a',
+    NEON_GREEN: '#9bd18b',
+    NEON_ORANGE: '#d8a26e',
+    DEEP_SPACE: '#0d151c',
+    COSMIC_PURPLE: '#1d2a35',
+    VOID_BLACK: '#091015',
+    STARLIGHT: '#f2f5f7',
+    ELECTRIC_BLUE: '#6ea6c1',
+    PRIMARY_BLUE: '#8fd3ff',
+    DARK_BLUE: '#1d2a35',
+    LIGHT_BLUE: '#6ea6c1',
+    PRIMARY_RED: '#d98873',
+    DARK_RED: '#9a6456',
+    PRIMARY_GREEN: '#9bd18b',
+    DARK_GREEN: '#658c59',
+    PRIMARY_YELLOW: '#e6c97a',
+    GOLD: '#e6c97a',
+    BACKGROUND: '#0d151c',
+    DARK_GRAY: '#24323c',
+    MEDIUM_GRAY: '#50606d',
+    LIGHT_GRAY: '#c0cad2'
 };
 
 // UI 状态
 const UIState = {
     NONE: 'none',
-    MENU: 'menu',
     DIALOG: 'dialog',
     BATTLE: 'battle',
     NOTIFICATION: 'notification'
@@ -71,8 +80,6 @@ class UIManager {
     currentDialog: UIDialogState | null = null;
     dialogVisible = false;
     notifications: UINotification[] = [];
-    menuStack: UIMenuState[] = [];
-    currentMenu: UIMenuState | null = null;
 
     constructor() {
         // 事件绑定
@@ -97,12 +104,6 @@ class UIManager {
      * @private
      */
     _setupEventListeners() {
-        // 监听 UI 打开事件
-        eventBus.on(GameEvents.UI_MENU_OPEN, (data) => {
-            const menuData = data as { menuType?: string } | undefined;
-            this.openMenu(menuData?.menuType || 'main');
-        });
-
         // 监听通知事件
         eventBus.on(GameEvents.UI_NOTIFICATION, (data) => {
             this.showNotification(data.message, data.type);
@@ -289,21 +290,18 @@ class UIManager {
         // 绘制对话框背景
         this._drawDialogBox(dialogX, dialogY, dialogWidth, dialogHeight);
 
-        // 绘制说话者名称 - 霓虹风格
+        this.ctx.save();
+
         if (this.currentDialog.speaker) {
-            this.ctx.shadowColor = UIColors.NEON_PINK;
-            this.ctx.shadowBlur = 10;
-            this.ctx.fillStyle = UIColors.NEON_PINK;
-            this.ctx.font = 'bold 20px sans-serif';
+            this.ctx.fillStyle = UIColors.ACCENT;
+            this.ctx.font = 'bold 16px monospace';
             this.ctx.textAlign = 'left';
-            this.ctx.fillText(this.currentDialog.speaker, dialogX + 24, dialogY + 28);
-            this.ctx.shadowBlur = 0;
+            this.ctx.fillText(this.currentDialog.speaker, dialogX + 20, dialogY + 24);
         }
 
-        // 绘制对话文本 - 发光效果
-        const textY = this.currentDialog.speaker ? dialogY + 58 : dialogY + 38;
-        this.ctx.fillStyle = UIColors.STARLIGHT;
-        this.ctx.font = '17px sans-serif';
+        const textY = this.currentDialog.speaker ? dialogY + 50 : dialogY + 34;
+        this.ctx.fillStyle = UIColors.TEXT;
+        this.ctx.font = '16px sans-serif';
         this.ctx.textAlign = 'left';
 
         let pages;
@@ -328,6 +326,8 @@ class UIManager {
         if (!this.currentDialog.choices && this.currentDialog.currentPage < this.currentDialog.totalPages - 1) {
             this._drawContinueIndicator(dialogX + dialogWidth - 30, dialogY + dialogHeight - 15);
         }
+
+        this.ctx.restore();
     }
 
     /**
@@ -347,16 +347,19 @@ class UIManager {
         this._drawDialogBox(x, boxY, width, totalHeight);
 
         // 绘制选择项
-        this.ctx.font = '16px monospace';
+        this.ctx.font = '15px monospace';
         choices.forEach((choice, i) => {
             const isSelected = i === (this.currentDialog.selectedChoice || 0);
 
             if (isSelected) {
-                this.ctx.fillStyle = UIColors.PRIMARY_BLUE;
+                this.ctx.fillStyle = UIColors.PANEL_ALT;
                 this.ctx.fillRect(x + 10, boxY + 10 + i * choiceHeight, width - 20, choiceHeight - 5);
+                this.ctx.strokeStyle = UIColors.ACCENT;
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(x + 10, boxY + 10 + i * choiceHeight, width - 20, choiceHeight - 5);
                 this.ctx.fillStyle = UIColors.TEXT;
             } else {
-                this.ctx.fillStyle = UIColors.LIGHT_GRAY;
+                this.ctx.fillStyle = UIColors.TEXT_SOFT;
             }
 
             this.ctx.textAlign = 'left';
@@ -365,7 +368,7 @@ class UIManager {
     }
 
     /**
-     * 绘制对话框背景 - 复古未来主义霓虹风格
+     * 绘制对话框背景 - 简约像素风
      * @param {number} x - X 坐标
      * @param {number} y - Y 坐标
      * @param {number} width - 宽度
@@ -374,97 +377,22 @@ class UIManager {
      */
     _drawDialogBox(x, y, width, height) {
         const ctx = this.ctx;
-
-        // 霓虹外发光
-        ctx.shadowColor = UIColors.NEON_PINK;
-        ctx.shadowBlur = 20;
-
-        // 主背景 - 渐变
-        const gradient = ctx.createLinearGradient(x, y, x, y + height);
-        gradient.addColorStop(0, 'rgba(45, 27, 78, 0.98)');
-        gradient.addColorStop(1, 'rgba(13, 2, 33, 0.98)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(x, y, width, height);
-
-        ctx.shadowBlur = 0;
-
-        // 霓虹边框
-        const borderGradient = ctx.createLinearGradient(x, y, x + width, y + height);
-        borderGradient.addColorStop(0, UIColors.NEON_PINK);
-        borderGradient.addColorStop(0.5, UIColors.NEON_CYAN);
-        borderGradient.addColorStop(1, UIColors.NEON_PURPLE);
-        ctx.strokeStyle = borderGradient;
-        ctx.lineWidth = 4;
-        ctx.strokeRect(x, y, width, height);
-
-        // 内发光线
-        ctx.strokeStyle = 'rgba(5, 217, 232, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x + 6, y + 6, width - 12, height - 12);
-
-        // 扫描线效果
         ctx.save();
-        ctx.globalAlpha = 0.1;
-        for (let scanY = y; scanY < y + height; scanY += 4) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(x, scanY, width, 2);
-        }
-        ctx.restore();
-
-        // 角落装饰
-        this._drawCornerDecorations(x, y, width, height);
-    }
-
-    /**
-     * 绘制角落装饰 - 赛博朋克风格
-     * @param {number} x - X 坐标
-     * @param {number} y - Y 坐标
-     * @param {number} width - 宽度
-     * @param {number} height - 高度
-     * @private
-     */
-    _drawCornerDecorations(x, y, width, height) {
-        const ctx = this.ctx;
-        const cornerSize = 15;
-
-        ctx.strokeStyle = UIColors.NEON_CYAN;
+        ctx.fillStyle = UIColors.SHADOW;
+        ctx.fillRect(x + 4, y + 4, width, height);
+        ctx.fillStyle = UIColors.PANEL;
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = UIColors.BORDER_STRONG;
         ctx.lineWidth = 3;
-        ctx.shadowColor = UIColors.NEON_CYAN;
-        ctx.shadowBlur = 10;
-
-        // 左上角
-        ctx.beginPath();
-        ctx.moveTo(x, y + cornerSize);
-        ctx.lineTo(x, y);
-        ctx.lineTo(x + cornerSize, y);
-        ctx.stroke();
-
-        // 右上角
-        ctx.beginPath();
-        ctx.moveTo(x + width - cornerSize, y);
-        ctx.lineTo(x + width, y);
-        ctx.lineTo(x + width, y + cornerSize);
-        ctx.stroke();
-
-        // 左下角
-        ctx.beginPath();
-        ctx.moveTo(x, y + height - cornerSize);
-        ctx.lineTo(x, y + height);
-        ctx.lineTo(x + cornerSize, y + height);
-        ctx.stroke();
-
-        // 右下角
-        ctx.beginPath();
-        ctx.moveTo(x + width - cornerSize, y + height);
-        ctx.lineTo(x + width, y + height);
-        ctx.lineTo(x + width, y + height - cornerSize);
-        ctx.stroke();
-
-        ctx.shadowBlur = 0;
+        ctx.strokeRect(x, y, width, height);
+        ctx.strokeStyle = UIColors.BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 4, y + 4, width - 8, height - 8);
+        ctx.restore();
     }
 
     /**
-     * 绘制继续指示箭头 - 霓虹风格
+     * 绘制继续指示箭头
      * @param {number} x - X 坐标
      * @param {number} y - Y 坐标
      * @private
@@ -473,17 +401,7 @@ class UIManager {
         const ctx = this.ctx;
         const time = Date.now() / 200;
         const offset = Math.sin(time) * 4;
-        const pulse = (Math.sin(time) + 1) / 2;
-
-        // 霓虹发光效果
-        ctx.shadowColor = UIColors.NEON_CYAN;
-        ctx.shadowBlur = 10 + pulse * 10;
-
-        // 箭头渐变
-        const gradient = ctx.createLinearGradient(x - 10, y - 10, x + 10, y + 5);
-        gradient.addColorStop(0, UIColors.NEON_CYAN);
-        gradient.addColorStop(1, UIColors.NEON_PINK);
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = UIColors.ACCENT;
 
         ctx.beginPath();
         ctx.moveTo(x, y + offset);
@@ -491,345 +409,120 @@ class UIManager {
         ctx.lineTo(x + 10, y - 8 + offset);
         ctx.closePath();
         ctx.fill();
-
-        ctx.shadowBlur = 0;
     }
 
-    // ==================== 菜单系统 ====================
+    // ==================== 菜单兼容层 ====================
 
     /**
-     * 打开菜单
+     * 获取菜单系统 owner
+     * @returns {MenuUI | null}
+     * @private
+     */
+    _getMenuOwner() {
+        return typeof menuUI !== 'undefined' ? menuUI : null;
+    }
+
+    /**
+     * 兼容旧入口：转发到 MenuUI
      * @param {string} menuType - 菜单类型
-     * @param {Object} options - 菜单选项
      */
-    openMenu(menuType, options = {}) {
-        const menuConfig = this._getMenuConfig(menuType, options);
+    openMenu(menuType) {
+        eventBus.emit(GameEvents.UI_MENU_OPEN, { menuType });
+    }
 
-        if (this.currentMenu) {
-            this.menuStack.push(this.currentMenu);
+    /**
+     * 兼容旧入口：转发到 MenuUI
+     */
+    closeMenu() {
+        const owner = this._getMenuOwner();
+        if (owner && owner.isOpen()) {
+            owner.closeMenu();
         }
+    }
 
-        this.currentMenu = {
-            type: menuType,
-            ...menuConfig,
-            selectedIndex: 0
+    /**
+     * 获取地图 HUD 状态快照
+     * @returns {object | null}
+     */
+    getMapHUDState() {
+        const gameState = typeof gameStateMachine !== 'undefined' && gameStateMachine.getGameState
+            ? gameStateMachine.getGameState()
+            : null;
+
+        if (!gameState) return null;
+
+        const player = (gameState.player || {}) as any;
+        const leadMonster = Array.isArray(player.party) && player.party.length > 0 ? player.party[0] : null;
+        const mapId = gameState.currentMapId || playerController?.currentMap?.id || '';
+        const mapName = (typeof MapTemplates !== 'undefined' && MapTemplates[mapId]?.name) || mapId || '未知区域';
+        const prompt = typeof playerController !== 'undefined' && playerController.getInteractionHint
+            ? playerController.getInteractionHint()
+            : 'Z 交互 · Esc 菜单';
+
+        return {
+            visible: typeof gameStateMachine !== 'undefined' && gameStateMachine.getCurrentState
+                ? gameStateMachine.getCurrentState() === GameState.MAP
+                : false,
+            mapId,
+            mapName,
+            money: player.money || 0,
+            prompt,
+            leadMonster: leadMonster ? {
+                name: leadMonster.nickname || leadMonster.name,
+                level: leadMonster.level || 1,
+                hp: leadMonster.stats?.hp || 0,
+                maxHp: leadMonster.stats?.maxHp || leadMonster.stats?.hp || 0
+            } : null
         };
-
-        this.state = UIState.MENU;
-        uiSafePlaySound(window.SoundID?.MENU_OPEN);
     }
 
     /**
-     * 获取菜单配置
-     * @param {string} menuType - 菜单类型
-     * @param {Object} options - 选项
-     * @returns {Object} 菜单配置
-     * @private
+     * 渲染地图 HUD
      */
-    _getMenuConfig(menuType, options) {
-        const configs = {
-            main: {
-                title: '游戏菜单',
-                items: [
-                    { id: 'resume', text: '继续游戏', action: 'resume' },
-                    { id: 'party', text: '怪兽', action: 'party' },
-                    { id: 'bag', text: '背包', action: 'bag' },
-                    { id: 'save', text: '存档', action: 'save' },
-                    { id: 'load', text: '读档', action: 'load' },
-                    { id: 'settings', text: '设置', action: 'settings' },
-                    { id: 'title', text: '返回标题', action: 'title' }
-                ]
-            },
-            battle_main: {
-                title: '',
-                items: [
-                    { id: 'skill', text: '技能', action: 'skill' },
-                    { id: 'bag', text: '背包', action: 'bag' },
-                    { id: 'monster', text: '怪兽', action: 'monster' },
-                    { id: 'run', text: '逃跑', action: 'run' }
-                ],
-                layout: 'grid'
-            },
-            settings: {
-                title: '设置',
-                items: [
-                    { id: 'master_volume', text: '主音量', type: 'slider', value: 1.0 },
-                    { id: 'bgm_volume', text: '背景音乐', type: 'slider', value: 0.6 },
-                    { id: 'sfx_volume', text: '音效音量', type: 'slider', value: 0.8 },
-                    { id: 'back', text: '返回', action: 'back' }
-                ]
-            }
-        };
+    renderMapHUD() {
+        if (!this.ctx || !this.canvas) return;
 
-        return configs[menuType] || configs.main;
-    }
+        const hud = this.getMapHUDState();
+        if (!hud?.visible) return;
 
-    /**
-     * 关闭菜单
-     */
-    closeMenu(skipStatePop = false) {
-        uiSafePlaySound(window.SoundID?.MENU_CLOSE);
-        if (this.menuStack.length > 0) {
-            this.currentMenu = this.menuStack.pop();
-        } else {
-            this.currentMenu = null;
-            this.state = UIState.NONE;
-            if (!skipStatePop && typeof gameStateMachine !== 'undefined') {
-                if (gameStateMachine.getCurrentState && gameStateMachine.getCurrentState() === GameState.MENU) {
-                    gameStateMachine.popState();
-                }
-            }
-        }
-    }
-
-    /**
-     * 移动菜单选择
-     * @param {number} direction - 方向 (-1 上/左, 1 下/右)
-     */
-    moveMenuSelection(direction) {
-        if (!this.currentMenu) return;
-
-        const items = this.currentMenu.items;
-        const oldIndex = this.currentMenu.selectedIndex;
-        let newIndex;
-
-        if (this.currentMenu.layout === 'grid') {
-            // 2x2 网格布局
-            const row = Math.floor(oldIndex / 2);
-            const col = oldIndex % 2;
-
-            if (direction === 'up' || direction === -1) {
-                newIndex = Math.max(0, row - 1) * 2 + col;
-            } else if (direction === 'down' || direction === 1) {
-                newIndex = Math.min(1, row + 1) * 2 + col;
-            } else if (direction === 'left') {
-                newIndex = row * 2 + Math.max(0, col - 1);
-            } else if (direction === 'right') {
-                newIndex = row * 2 + Math.min(1, col + 1);
-            } else {
-                newIndex = (oldIndex + direction + items.length) % items.length;
-            }
-        } else {
-            // 垂直列表布局
-            newIndex = (oldIndex + direction + items.length) % items.length;
-        }
-
-        if (newIndex !== oldIndex) {
-            this.currentMenu.selectedIndex = newIndex;
-            uiSafePlaySound(window.SoundID?.CURSOR_MOVE);
-        }
-    }
-
-    /**
-     * 确认菜单选择
-     */
-    confirmMenuSelection() {
-        if (!this.currentMenu) return;
-
-        const item = this.currentMenu.items[this.currentMenu.selectedIndex];
-        if (!item) return;
-
-            uiSafePlaySound(window.SoundID?.CONFIRM);
-
-        // 处理菜单项动作
-        this._handleMenuAction(item);
-    }
-
-    /**
-     * 处理菜单动作
-     * @param {Object} item - 菜单项
-     * @private
-     */
-    _handleMenuAction(item) {
-        switch (item.action) {
-            case 'resume':
-                this.closeMenu(true);
-                gameStateMachine.popState();
-                break;
-            case 'back':
-                this.closeMenu();
-                break;
-            case 'save':
-                gameStateMachine.pushState(GameState.SAVE);
-                break;
-            case 'load':
-                gameStateMachine.pushState(GameState.LOAD);
-                break;
-            case 'settings':
-                this.openMenu('settings');
-                break;
-            case 'title':
-                gameStateMachine.changeState(GameState.TITLE);
-                this.closeMenu();
-                break;
-            default:
-                // 发出事件，由其他系统处理
-                eventBus.emit('ui:menu_action', { action: item.action, item: item });
-        }
-    }
-
-    /**
-     * 渲染菜单
-     */
-    renderMenu() {
-        if (!this.currentMenu || !this.ctx) return;
-
-        if (this.currentMenu.layout === 'grid') {
-            this._renderGridMenu();
-        } else {
-            this._renderListMenu();
-        }
-    }
-
-    /**
-     * 渲染列表菜单
-     * @private
-     */
-    _renderListMenu() {
         const ctx = this.ctx;
         const canvasWidth = this.canvas.width;
-        const canvasHeight = this.canvas.height;
 
-        const menuWidth = 280;
-        const itemHeight = 40;
-        const items = this.currentMenu.items;
-        const menuHeight = items.length * itemHeight + 60;
-        const menuX = 40;
-        const menuY = canvasHeight / 2 - menuHeight / 2;
+        this._drawDialogBox(16, 14, 210, 58);
+        ctx.fillStyle = UIColors.TEXT_MUTED;
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('当前区域', 28, 34);
+        ctx.fillStyle = UIColors.TEXT;
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText(hud.mapName, 28, 58);
 
-        // 绘制半透明背景
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        this._drawDialogBox(canvasWidth - 228, 14, 212, 86);
+        ctx.fillStyle = UIColors.TEXT_MUTED;
+        ctx.font = '12px monospace';
+        ctx.fillText('资金', canvasWidth - 212, 34);
+        ctx.fillStyle = UIColors.WARNING;
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText(`¥${Number(hud.money || 0).toLocaleString()}`, canvasWidth - 212, 58);
 
-        // 绘制菜单框
-        this._drawDialogBox(menuX, menuY, menuWidth, menuHeight);
-
-        // 绘制标题
-        if (this.currentMenu.title) {
-            ctx.fillStyle = UIColors.TEXT;
-            ctx.font = 'bold 20px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(this.currentMenu.title, menuX + menuWidth / 2, menuY + 30);
+        if (hud.leadMonster) {
+            ctx.fillStyle = UIColors.TEXT_SOFT;
+            ctx.font = '13px monospace';
+            ctx.fillText(`${hud.leadMonster.name} Lv.${hud.leadMonster.level}`, canvasWidth - 212, 82);
+            this.renderHPBar(canvasWidth - 212, 88, 180, hud.leadMonster.hp, hud.leadMonster.maxHp, false);
+        } else {
+            ctx.fillStyle = UIColors.TEXT_SOFT;
+            ctx.font = '13px monospace';
+            ctx.fillText('尚未拥有同行精灵', canvasWidth - 212, 82);
         }
 
-        // 绘制菜单项
-        ctx.font = '18px monospace';
+        ctx.font = '12px monospace';
+        const promptWidth = Math.max(180, Math.min(320, ctx.measureText(hud.prompt).width + 28));
+        const promptX = canvasWidth - promptWidth - 16;
+        this._drawDialogBox(promptX, this.canvas.height - 52, promptWidth, 36);
+        ctx.fillStyle = UIColors.TEXT_SOFT;
         ctx.textAlign = 'left';
-
-        const startY = this.currentMenu.title ? menuY + 55 : menuY + 25;
-
-        items.forEach((item, i) => {
-            const isSelected = i === this.currentMenu.selectedIndex;
-            const itemY = startY + i * itemHeight;
-
-            if (isSelected) {
-                // 选中项高亮 - 霓虹渐变
-                const selectedGradient = ctx.createLinearGradient(menuX + 10, itemY, menuX + menuWidth - 10, itemY + itemHeight);
-                selectedGradient.addColorStop(0, 'rgba(255, 42, 109, 0.8)');
-                selectedGradient.addColorStop(1, 'rgba(211, 0, 197, 0.8)');
-                ctx.fillStyle = selectedGradient;
-                ctx.shadowColor = UIColors.NEON_PINK;
-                ctx.shadowBlur = 15;
-                ctx.fillRect(menuX + 10, itemY, menuWidth - 20, itemHeight - 5);
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = UIColors.STARLIGHT;
-            } else {
-                ctx.fillStyle = UIColors.LIGHT_GRAY;
-            }
-
-            if (item.type === 'slider') {
-                this._renderSliderItem(menuX + 20, itemY + 25, item, isSelected);
-            } else {
-                const prefix = isSelected ? '▶ ' : '  ';
-                ctx.fillText(prefix + item.text, menuX + 20, itemY + 25);
-            }
-        });
-    }
-
-    /**
-     * 渲染滑块菜单项
-     * @param {number} x - X 坐标
-     * @param {number} y - Y 坐标
-     * @param {Object} item - 菜单项
-     * @param {boolean} isSelected - 是否选中
-     * @private
-     */
-    _renderSliderItem(x, y, item, isSelected) {
-        const ctx = this.ctx;
-        const sliderWidth = 120;
-        const sliderX = x + 130;
-
-        ctx.fillText(item.text, x, y);
-
-        // 滑块背景
-        ctx.fillStyle = UIColors.DARK_GRAY;
-        ctx.fillRect(sliderX, y - 12, sliderWidth, 16);
-
-        // 滑块填充
-        const fillWidth = sliderWidth * item.value;
-        ctx.fillStyle = isSelected ? UIColors.PRIMARY_BLUE : UIColors.MEDIUM_GRAY;
-        ctx.fillRect(sliderX, y - 12, fillWidth, 16);
-
-        // 滑块值
-        ctx.fillText(Math.round(item.value * 100) + '%', sliderX + sliderWidth + 10, y);
-    }
-
-    /**
-     * 渲染网格菜单
-     * @private
-     */
-    _renderGridMenu() {
-        const ctx = this.ctx;
-        const canvasWidth = this.canvas.width;
-        const canvasHeight = this.canvas.height;
-
-        const menuWidth = 320;
-        const menuHeight = 140;
-        const menuX = canvasWidth - menuWidth - 30;
-        const menuY = canvasHeight - menuHeight - 20;
-
-        // 绘制菜单框
-        this._drawDialogBox(menuX, menuY, menuWidth, menuHeight);
-
-        // 绘制菜单项 (2x2 网格)
-        const items = this.currentMenu.items;
-        const cellWidth = menuWidth / 2 - 15;
-        const cellHeight = (menuHeight - 30) / 2;
-
-        ctx.font = '18px monospace';
-        ctx.textAlign = 'left';
-
-        items.forEach((item, i) => {
-            const row = Math.floor(i / 2);
-            const col = i % 2;
-            const isSelected = i === this.currentMenu.selectedIndex;
-
-            const cellX = menuX + 15 + col * (cellWidth + 10);
-            const cellY = menuY + 15 + row * (cellHeight + 5);
-
-            if (isSelected) {
-                // 选中项 - 霓虹渐变
-                const cellGradient = ctx.createLinearGradient(cellX, cellY, cellX + cellWidth, cellY + cellHeight);
-                cellGradient.addColorStop(0, 'rgba(255, 42, 109, 0.9)');
-                cellGradient.addColorStop(1, 'rgba(5, 217, 232, 0.9)');
-                ctx.fillStyle = cellGradient;
-                ctx.shadowColor = UIColors.NEON_CYAN;
-                ctx.shadowBlur = 20;
-                ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = UIColors.STARLIGHT;
-            } else {
-                const darkGradient = ctx.createLinearGradient(cellX, cellY, cellX, cellY + cellHeight);
-                darkGradient.addColorStop(0, 'rgba(45, 27, 78, 0.9)');
-                darkGradient.addColorStop(1, 'rgba(13, 2, 33, 0.9)');
-                ctx.fillStyle = darkGradient;
-                ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
-                ctx.fillStyle = UIColors.LIGHT_GRAY;
-            }
-
-            const prefix = isSelected ? '▶ ' : '  ';
-            ctx.fillText(prefix + item.text, cellX + 15, cellY + cellHeight / 2 + 6);
-        });
+        ctx.fillText(hud.prompt, promptX + 14, this.canvas.height - 28);
     }
 
     // ==================== 通知系统 ====================
@@ -877,10 +570,10 @@ class UIManager {
 
         this.notifications.forEach((notification) => {
             const colors = {
-                info: { bg: UIColors.PRIMARY_BLUE, text: UIColors.TEXT },
-                success: { bg: UIColors.PRIMARY_GREEN, text: UIColors.TEXT },
-                warning: { bg: UIColors.PRIMARY_YELLOW, text: UIColors.BACKGROUND },
-                error: { bg: UIColors.PRIMARY_RED, text: UIColors.TEXT }
+                info: { bg: UIColors.PANEL_ALT, text: UIColors.TEXT, border: UIColors.ACCENT },
+                success: { bg: UIColors.PANEL_ALT, text: UIColors.TEXT, border: UIColors.SUCCESS },
+                warning: { bg: UIColors.PANEL_ALT, text: UIColors.TEXT, border: UIColors.WARNING },
+                error: { bg: UIColors.PANEL_ALT, text: UIColors.TEXT, border: UIColors.DANGER }
             };
 
             const color = colors[notification.type] || colors.info;
@@ -896,8 +589,7 @@ class UIManager {
             ctx.fillStyle = color.bg;
             ctx.fillRect(notificationX, yOffset, notificationWidth, notificationHeight);
 
-            // 绘制边框
-            ctx.strokeStyle = UIColors.TEXT;
+            ctx.strokeStyle = color.border;
             ctx.lineWidth = 2;
             ctx.strokeRect(notificationX, yOffset, notificationWidth, notificationHeight);
 
@@ -913,7 +605,7 @@ class UIManager {
     // ==================== HP/PP 条渲染 ====================
 
     /**
-     * 渲染 HP 条 - 复古未来主义霓虹风格
+     * 渲染 HP 条
      * @param {number} x - X 坐标
      * @param {number} y - Y 坐标
      * @param {number} width - 宽度
@@ -929,56 +621,30 @@ class UIManager {
         const height = 18;
         const percentage = Math.max(0, Math.min(1, currentHp / maxHp));
 
-        // 确定颜色 - 霓虹色系
-        let barColor, glowColor;
+        let barColor;
         if (percentage > 0.5) {
-            barColor = UIColors.NEON_GREEN;
-            glowColor = 'rgba(57, 255, 20, 0.6)';
+            barColor = UIColors.SUCCESS;
         } else if (percentage > 0.25) {
-            barColor = UIColors.NEON_YELLOW;
-            glowColor = 'rgba(249, 240, 2, 0.6)';
+            barColor = UIColors.WARNING;
         } else {
-            barColor = UIColors.NEON_PINK;
-            glowColor = 'rgba(255, 42, 109, 0.8)';
+            barColor = UIColors.DANGER;
         }
 
-        // 外发光背景
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = 15;
-
-        // 背景 - 深色渐变
-        const bgGradient = ctx.createLinearGradient(x, y, x, y + height);
-        bgGradient.addColorStop(0, 'rgba(45, 27, 78, 0.9)');
-        bgGradient.addColorStop(1, 'rgba(13, 2, 33, 0.9)');
-        ctx.fillStyle = bgGradient;
+        ctx.fillStyle = UIColors.PANEL_DEEP;
         ctx.fillRect(x, y, width, height);
 
-        // HP 条 - 霓虹渐变
         if (percentage > 0) {
-            const hpGradient = ctx.createLinearGradient(x, y, x + width * percentage, y);
-            hpGradient.addColorStop(0, barColor);
-            hpGradient.addColorStop(1, this._adjustColorBrightness(barColor, -30));
-            ctx.fillStyle = hpGradient;
+            ctx.fillStyle = barColor;
             ctx.fillRect(x + 2, y + 2, width * percentage - 4, height - 4);
         }
 
-        ctx.shadowBlur = 0;
-
-        // 边框 - 霓虹效果
-        const borderGradient = ctx.createLinearGradient(x, y, x + width, y);
-        borderGradient.addColorStop(0, UIColors.NEON_PINK);
-        borderGradient.addColorStop(0.5, UIColors.NEON_CYAN);
-        borderGradient.addColorStop(1, UIColors.NEON_PURPLE);
-        ctx.strokeStyle = borderGradient;
+        ctx.strokeStyle = UIColors.BORDER_STRONG;
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, width, height);
 
-        // 数值文本 - 发光效果
         if (showText) {
-            ctx.shadowColor = barColor;
-            ctx.shadowBlur = 8;
-            ctx.fillStyle = barColor;
-            ctx.font = 'bold 12px sans-serif';
+            ctx.fillStyle = UIColors.TEXT_SOFT;
+            ctx.font = 'bold 12px monospace';
             ctx.textAlign = 'right';
             ctx.fillText(`${currentHp}/${maxHp}`, x + width, y - 4);
         }
@@ -1001,7 +667,7 @@ class UIManager {
     }
 
     /**
-     * 渲染 PP 条 - 复古未来主义霓虹风格
+     * 渲染 PP 条
      * @param {number} x - X 坐标
      * @param {number} y - Y 坐标
      * @param {number} width - 宽度
@@ -1016,40 +682,22 @@ class UIManager {
         const height = 12;
         const percentage = Math.max(0, Math.min(1, currentPp / maxPp));
 
-        const barColor = percentage > 0.25 ? UIColors.NEON_CYAN : UIColors.NEON_PURPLE;
+        const barColor = percentage > 0.25 ? UIColors.ACCENT : UIColors.DANGER;
 
-        // 外发光
-        ctx.shadowColor = barColor;
-        ctx.shadowBlur = 10;
-
-        // 背景
-        const bgGradient = ctx.createLinearGradient(x, y, x, y + height);
-        bgGradient.addColorStop(0, 'rgba(45, 27, 78, 0.9)');
-        bgGradient.addColorStop(1, 'rgba(13, 2, 33, 0.9)');
-        ctx.fillStyle = bgGradient;
+        ctx.fillStyle = UIColors.PANEL_DEEP;
         ctx.fillRect(x, y, width, height);
 
-        // PP 条 - 霓虹渐变
         if (percentage > 0) {
-            const ppGradient = ctx.createLinearGradient(x, y, x + width * percentage, y);
-            ppGradient.addColorStop(0, barColor);
-            ppGradient.addColorStop(1, this._adjustColorBrightness(barColor, -40));
-            ctx.fillStyle = ppGradient;
+            ctx.fillStyle = barColor;
             ctx.fillRect(x + 1, y + 1, width * percentage - 2, height - 2);
         }
 
-        ctx.shadowBlur = 0;
-
-        // 边框
-        ctx.strokeStyle = barColor;
+        ctx.strokeStyle = UIColors.BORDER;
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, width, height);
 
-        // 数值文本
-        ctx.shadowColor = barColor;
-        ctx.shadowBlur = 5;
-        ctx.fillStyle = barColor;
-        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = UIColors.TEXT_SOFT;
+        ctx.font = 'bold 11px monospace';
         ctx.textAlign = 'right';
         ctx.fillText(`PP ${currentPp}/${maxPp}`, x + width, y - 3);
         ctx.restore();
@@ -1063,14 +711,8 @@ class UIManager {
     render() {
         if (!this.initialized || !this.ctx) return;
 
-        // 根据状态渲染不同的 UI
-        switch (this.state) {
-            case UIState.MENU:
-                this.renderMenu();
-                break;
-            case UIState.DIALOG:
-                this.renderDialog();
-                break;
+        if (this.state === UIState.DIALOG) {
+            this.renderDialog();
         }
 
         // 通知总是渲染在最上层
@@ -1095,8 +737,6 @@ class UIManager {
     handleInput(event) {
         if (this.state === UIState.DIALOG) {
             return this._handleDialogInput(event);
-        } else if (this.state === UIState.MENU) {
-            return this._handleMenuInput(event);
         }
         return false;
     }
@@ -1160,76 +800,6 @@ class UIManager {
     }
 
     /**
-     * 处理菜单输入
-     * @param {KeyboardEvent} event - 键盘事件
-     * @returns {boolean} 是否处理了输入
-     * @private
-     */
-    _handleMenuInput(event) {
-        if (event.type !== 'keydown') return false;
-
-        if (this.currentMenu?.layout === 'grid') {
-            switch (event.key) {
-                case 'ArrowUp':
-                case 'w':
-                case 'W':
-                    this.moveMenuSelection('up');
-                    return true;
-                case 'ArrowDown':
-                case 's':
-                case 'S':
-                    this.moveMenuSelection('down');
-                    return true;
-                case 'ArrowLeft':
-                case 'a':
-                case 'A':
-                    this.moveMenuSelection('left');
-                    return true;
-                case 'ArrowRight':
-                case 'd':
-                case 'D':
-                    this.moveMenuSelection('right');
-                    return true;
-                case 'Enter':
-                case 'z':
-                case 'Z':
-                    this.confirmMenuSelection();
-                    return true;
-                case 'Escape':
-                case 'x':
-                case 'X':
-                    this.closeMenu();
-                    return true;
-            }
-        } else {
-            switch (event.key) {
-                case 'ArrowUp':
-                case 'w':
-                case 'W':
-                    this.moveMenuSelection(-1);
-                    return true;
-                case 'ArrowDown':
-                case 's':
-                case 'S':
-                    this.moveMenuSelection(1);
-                    return true;
-                case 'Enter':
-                case 'z':
-                case 'Z':
-                    this.confirmMenuSelection();
-                    return true;
-                case 'Escape':
-                case 'x':
-                case 'X':
-                    this.closeMenu();
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * 获取当前状态
      * @returns {string} UI 状态
      */
@@ -1244,4 +814,5 @@ window.UIState = UIState;
 
 // 创建全局实例并暴露到 window 对象上
 window.uiManager = new UIManager();
+(globalThis as any).uiManager = window.uiManager;
 const uiManager = window.uiManager;

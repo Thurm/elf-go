@@ -267,6 +267,10 @@ class InventoryManager {
 
         // 触发更新事件
         eventBus.emit(GameEvents.DATA_UPDATE, gameState);
+        eventBus.emit(GameEvents.ITEM_ACQUIRED, {
+            itemId,
+            quantity
+        });
         eventBus.emit('inventory:changed', {
             action: 'add',
             itemId,

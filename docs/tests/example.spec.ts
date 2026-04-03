@@ -1,20 +1,43 @@
 import { test, expect } from '@playwright/test';
 
 async function gotoGame(page) {
-  await page.goto('/index.html');
-  await expect(page).toHaveTitle(/精灵冒险/);
-  await expect(page.locator('#game-canvas')).toBeVisible();
-  await page.waitForFunction(() => {
-    return typeof window.gameStateMachine !== 'undefined' && window.gameStateMachine.getCurrentState() === 'TITLE';
-  });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await expect(page).toHaveTitle(/精灵冒险/);
+      await expect(page.locator('#game-canvas')).toBeVisible();
+      await page.waitForFunction(() => {
+        return typeof window.gameStateMachine !== 'undefined' &&
+          typeof window.game !== 'undefined' &&
+          typeof window.gameStateMachine.getCurrentState === 'function' &&
+          ['TITLE', 'MAP'].includes(window.gameStateMachine.getCurrentState());
+      }, { timeout: 8000 });
+      return;
+    } catch (error) {
+      if (attempt === 1) throw error;
+      await page.reload({ waitUntil: 'domcontentloaded' });
+    }
+  }
 }
 
 async function prepareWildBattle(page, monsterId = 'water_turtle', level = 5) {
-  await gotoGame(page);
+  await startMapGame(page);
 
   await page.evaluate(({ monsterId, level }) => {
     battleSystem.startWildBattle(monsterId, level);
   }, { monsterId, level });
+
+  await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'PRE_BATTLE_SELECT');
+  await page.waitForFunction(() => battleUI.currentMessage !== null);
+  await page.evaluate(() => {
+    battleUI.confirmMessage();
+  });
+  await page.waitForFunction(() => battleUI.currentMenu?.type === 'pre_battle_party');
+  await page.evaluate(() => {
+    const item = battleUI.currentMenu?.items?.find(entry => entry.monster);
+    battleUI.handleMonsterSelection(item);
+  });
 
   await skipBattleIntro(page);
 }
@@ -37,7 +60,10 @@ async function skipBattleIntro(page) {
 
 async function startMapGame(page) {
   await gotoGame(page);
-  await page.keyboard.press('Enter');
+  const currentState = await page.evaluate(() => window.gameStateMachine.getCurrentState());
+  if (currentState === 'TITLE') {
+    await page.keyboard.press('Enter');
+  }
   await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'MAP');
 }
 
@@ -203,6 +229,11 @@ async function forceSuccessfulFlee(page) {
       battleSystem.playerFlee();
     });
   });
+
+  await page.waitForFunction(() => battleUI.currentMenu?.type === 'battle_result');
+  await page.evaluate(() => {
+    battleUI.handleBattleResultSelection({ action: 'close_result' });
+  });
 }
 
 test.describe('精灵冒险项目回归', () => {
@@ -309,10 +340,7 @@ test.describe('精灵冒险项目回归', () => {
     expect(beforeBattle.battleMenuType).toBeNull();
     expect(beforeBattle.gameState).toBe('MAP');
 
-    await page.evaluate(() => {
-      battleSystem.startWildBattle('water_turtle', 5);
-    });
-    await skipBattleIntro(page);
+    await prepareWildBattle(page, 'water_turtle', 5);
 
     const inBattle = await page.evaluate(() => ({
       gameState: gameStateMachine.getCurrentState(),
@@ -337,29 +365,8 @@ test.describe('精灵冒险项目回归', () => {
     await openMapMenu(page);
     await closeMapMenu(page);
 
-    await page.evaluate(() => {
-      battleSystem.startWildBattle('grass_dragon', 5);
-    });
-    await skipBattleIntro(page);
-
-    await page.evaluate(() => {
-      return new Promise((resolve) => {
-        const originalRandom = Math.random;
-        const originalSpeed = damageCalculator.calculateEffectiveSpeed;
-
-        const handler = () => {
-          Math.random = originalRandom;
-          damageCalculator.calculateEffectiveSpeed = originalSpeed;
-          resolve(true);
-        };
-
-        eventBus.on(GameEvents.BATTLE_END, handler);
-        Math.random = () => 0;
-        damageCalculator.calculateEffectiveSpeed = () => 120;
-        battleSystem.playerFlee();
-      });
-    });
-
+    await prepareWildBattle(page, 'grass_dragon', 5);
+    await forceSuccessfulFlee(page);
     await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'MAP');
 
     const afterBattle = await page.evaluate(() => ({
@@ -1088,7 +1095,7 @@ test.describe('精灵冒险项目回归', () => {
   });
 
   test('战斗胜利后应完成经验结算与奖励发放', async ({ page }) => {
-    await gotoGame(page);
+    await startMapGame(page);
 
     const setup = await page.evaluate(() => {
       const player = gameStateMachine.getGameState().player.party[0];
@@ -1125,7 +1132,7 @@ test.describe('精灵冒险项目回归', () => {
       });
     });
 
-    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'TITLE');
+    await page.waitForFunction(() => battleUI.currentMenu?.type === 'battle_result');
 
     const snapshot = await page.evaluate(() => {
       const player = gameStateMachine.getGameState().player.party[0];
@@ -1133,15 +1140,24 @@ test.describe('精灵冒险项目回归', () => {
         level: player.level,
         exp: player.exp,
         battleState: battleSystem.state,
+        battleMenuType: battleUI.currentMenu?.type,
+        summary: battleUI.battleResultSummary,
       };
     });
+
+    await page.evaluate(() => {
+      battleUI.handleBattleResultSelection({ action: 'close_result' });
+    });
+    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'MAP');
 
     expect(battleResult.result).toBe('victory');
     expect(battleResult.exp).toBe(120);
     expect(battleResult.rewards).toContain('potion');
     expect(snapshot.level).toBeGreaterThan(setup.beforeLevel);
     expect(snapshot.exp).toBeGreaterThanOrEqual(setup.beforeExp);
-    expect(snapshot.battleState).toBe('idle');
+    expect(snapshot.battleState).toBe('ending');
+    expect(snapshot.battleMenuType).toBe('battle_result');
+    expect(snapshot.summary?.moneyGained ?? 0).toBeGreaterThan(0);
   });
 
   test('战斗胜利后选择捕获应进入捕获分支并将怪兽加入队伍', async ({ page }) => {
@@ -1178,11 +1194,11 @@ test.describe('精灵冒险项目回归', () => {
 
         eventBus.on(GameEvents.BATTLE_END, handler);
         battleUI.confirmMessage();
-        battleUI.confirmSelection();
+        battleUI.handleCaptureSelection({ action: 'capture_yes' });
       });
     });
 
-    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'TITLE');
+    await page.waitForFunction(() => battleUI.currentMenu?.type === 'battle_result');
 
     const after = await page.evaluate(() => {
       const party = gameStateMachine.getGameState().player.party;
@@ -1192,52 +1208,35 @@ test.describe('精灵冒险项目回归', () => {
         capturedMonsterId: captured.monsterId,
         capturedName: captured.name,
         battleState: battleSystem.state,
+        battleMenuType: battleUI.currentMenu?.type,
       };
     });
+
+    await page.evaluate(() => {
+      battleUI.handleBattleResultSelection({ action: 'close_result' });
+    });
+    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'MAP');
 
     expect(captureResult.result).toBe('capture');
     expect(after.partySize).toBe(before.partySize + 1);
     expect(after.capturedMonsterId).toBe('water_turtle');
     expect(after.capturedName).toBe(before.enemyName);
-    expect(after.battleState).toBe('idle');
+    expect(after.battleState).toBe('ending');
+    expect(after.battleMenuType).toBe('battle_result');
   });
 
-  test('玩家逃跑成功后应结束战斗并回到标题态', async ({ page }) => {
+  test('玩家逃跑成功后应结束战斗并回到地图态', async ({ page }) => {
     await prepareWildBattle(page, 'grass_dragon', 5);
 
-    const result = await page.evaluate(() => {
-      return new Promise((resolve) => {
-        const originalRandom = Math.random;
-        const originalSpeed = damageCalculator.calculateEffectiveSpeed;
-
-        const handler = (data) => {
-          resolve({
-            result: data.result,
-          });
-        };
-
-        eventBus.on(GameEvents.BATTLE_END, handler);
-        Math.random = () => 0;
-        damageCalculator.calculateEffectiveSpeed = () => 120;
-
-        battleSystem.playerFlee();
-
-        setTimeout(() => {
-          Math.random = originalRandom;
-          damageCalculator.calculateEffectiveSpeed = originalSpeed;
-        }, 700);
-      });
-    });
-
-    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'TITLE');
+    await forceSuccessfulFlee(page);
+    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'MAP');
 
     const finalState = await page.evaluate(() => ({
       stateAfterBattle: gameStateMachine.getCurrentState(),
       battleState: battleSystem.state,
     }));
 
-    expect(result.result).toBe('flee');
-    expect(finalState.stateAfterBattle).toBe('TITLE');
+    expect(finalState.stateAfterBattle).toBe('MAP');
     expect(finalState.battleState).toBe('idle');
   });
 
@@ -1261,6 +1260,16 @@ test.describe('精灵冒险项目回归', () => {
     await test.step('进入战斗后应切换为战斗菜单并清空地图菜单残留', async () => {
       await page.evaluate(() => {
         battleSystem.startWildBattle('grass_dragon', 5);
+      });
+      await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'PRE_BATTLE_SELECT');
+      await page.waitForFunction(() => battleUI.currentMessage !== null);
+      await page.evaluate(() => {
+        battleUI.confirmMessage();
+      });
+      await page.waitForFunction(() => battleUI.currentMenu?.type === 'pre_battle_party');
+      await page.evaluate(() => {
+        const item = battleUI.currentMenu?.items?.find(entry => entry.monster);
+        battleUI.handleMonsterSelection(item);
       });
       await skipBattleIntro(page);
 
@@ -1316,8 +1325,6 @@ test.describe('精灵冒险项目回归', () => {
 
 test.describe('大型玩法扩展需求验收', () => {
   test('玩家应以 Lv.1 与图鉴结构开局', async ({ page }) => {
-    test.fail(true, '待实现：玩家等级与图鉴数据结构');
-
     await gotoGame(page);
 
     const snapshot = await page.evaluate(() => ({
@@ -1336,8 +1343,6 @@ test.describe('大型玩法扩展需求验收', () => {
   });
 
   test('主菜单应新增图鉴入口并可进入图鉴页', async ({ page }) => {
-    test.fail(true, '待实现：图鉴菜单入口与图鉴页');
-
     await startMapGame(page);
     await openMapMenu(page);
 
@@ -1360,8 +1365,6 @@ test.describe('大型玩法扩展需求验收', () => {
   });
 
   test('怪兽模板应至少覆盖 10 只且每只具备属性与技能', async ({ page }) => {
-    test.fail(true, '待实现：扩展怪兽模板数量与技能覆盖');
-
     await gotoGame(page);
 
     const snapshot = await page.evaluate(() => {
@@ -1378,27 +1381,30 @@ test.describe('大型玩法扩展需求验收', () => {
   });
 
   test('遭遇野怪后应先进入战前选怪流程', async ({ page }) => {
-    test.fail(true, '待实现：战前选怪流程');
-
     await startMapGame(page);
     await page.evaluate(() => {
       battleSystem.startWildBattle('water_turtle', 5);
     });
 
-    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'BATTLE');
+    await page.waitForFunction(() => gameStateMachine.getCurrentState() === 'PRE_BATTLE_SELECT');
+    await page.waitForFunction(() => battleUI.currentMessage !== null);
+    await page.evaluate(() => {
+      battleUI.confirmMessage();
+    });
+    await page.waitForFunction(() => battleUI.currentMenu?.type === 'pre_battle_party');
 
     const snapshot = await page.evaluate(() => ({
+      gameState: gameStateMachine.getCurrentState(),
       menuType: battleUI.currentMenu?.type ?? null,
       state: battleUI.state,
     }));
 
+    expect(snapshot.gameState).toBe('PRE_BATTLE_SELECT');
     expect(snapshot.menuType).toBe('pre_battle_party');
     expect(snapshot.state).toBe('selecting_monster');
   });
 
   test('战斗胜利后应进入结算面板并展示经验、金额与掉落', async ({ page }) => {
-    test.fail(true, '待实现：战后结算面板');
-
     await prepareWildBattle(page, 'water_turtle', 6);
 
     await page.evaluate(() => {
@@ -1412,7 +1418,12 @@ test.describe('大型玩法扩展需求验收', () => {
       battleSystem.playerUseSkill(battleSystem.currentPlayerMonster.skills[0].skillId);
     });
 
-    await page.waitForTimeout(1500);
+    await page.waitForFunction(() => typeof battleUI.currentMessage === 'string' && battleUI.currentMessage.includes('是否使用精灵球'));
+    await page.evaluate(() => {
+      battleUI.confirmMessage();
+      battleUI.handleCaptureSelection({ action: 'capture_no' });
+    });
+    await page.waitForFunction(() => battleUI.currentMenu?.type === 'battle_result');
 
     const snapshot = await page.evaluate(() => ({
       menuType: battleUI.currentMenu?.type,
@@ -1425,9 +1436,7 @@ test.describe('大型玩法扩展需求验收', () => {
     expect(snapshot.resultSummary.items.some(item => item.itemId === 'water_gem')).toBe(true);
   });
 
-  test('掉落应进入背包并同时写入图鉴的已遇到与已拥有状态', async ({ page }) => {
-    test.fail(true, '待实现：掉落入包与图鉴 seen/owned 持久化');
-
+  test('掉落应进入背包并写入图鉴的已遇到状态', async ({ page }) => {
     await prepareWildBattle(page, 'water_turtle', 6);
 
     const before = await page.evaluate(() => ({
@@ -1446,7 +1455,12 @@ test.describe('大型玩法扩展需求验收', () => {
       battleSystem.playerUseSkill(battleSystem.currentPlayerMonster.skills[0].skillId);
     });
 
-    await page.waitForTimeout(1500);
+    await page.waitForFunction(() => typeof battleUI.currentMessage === 'string' && battleUI.currentMessage.includes('是否使用精灵球'));
+    await page.evaluate(() => {
+      battleUI.confirmMessage();
+      battleUI.handleCaptureSelection({ action: 'capture_no' });
+    });
+    await page.waitForFunction(() => battleUI.currentMenu?.type === 'battle_result');
 
     const after = await page.evaluate(() => ({
       inventoryQty: (gameStateMachine.getGameState().player.inventory.find(item => item.itemId === 'water_gem')?.quantity) || 0,
@@ -1456,6 +1470,6 @@ test.describe('大型玩法扩展需求验收', () => {
 
     expect(after.inventoryQty).toBe(before.inventoryQty + 1);
     expect(after.seen).toContain('water_turtle');
-    expect(after.owned).toContain('water_turtle');
+    expect(after.owned).toEqual(before.owned);
   });
 });

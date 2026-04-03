@@ -290,31 +290,51 @@ class QuestManager {
 
         // 给予物品
         if (rewards.items && rewards.items.length > 0) {
-            if (!player.inventory) {
-                player.inventory = [];
-            }
-
             for (const item of rewards.items) {
-                const existing = player.inventory.find(i => i.itemId === item.itemId);
-                if (existing) {
-                    existing.quantity += item.quantity;
+                if (typeof inventoryManager !== 'undefined' && inventoryManager.addItem) {
+                    inventoryManager.addItem(item.itemId, item.quantity);
                 } else {
-                    player.inventory.push({ ...item });
+                    if (!player.inventory) {
+                        player.inventory = [];
+                    }
+
+                    const existing = player.inventory.find(i => i.itemId === item.itemId);
+                    if (existing) {
+                        existing.quantity += item.quantity;
+                    } else {
+                        player.inventory.push({ ...item });
+                    }
                 }
             }
 
             console.log(`[QuestManager] 获得物品:`, rewards.items);
         }
 
-        // TODO: 给予经验值
         if (rewards.exp) {
             console.log(`[QuestManager] 获得经验: ${rewards.exp}`);
-            // 经验值处理由战斗系统或角色系统管理
+            const result = awardPlayerExp(player, rewards.exp);
+            if (result.gained > 0) {
+                eventBus.emit(GameEvents.UI_NOTIFICATION, {
+                    message: `获得 ${result.gained} 点训练家经验！`,
+                    type: 'success'
+                });
+            }
+
+            result.levelsGained.forEach(level => {
+                eventBus.emit(GameEvents.UI_NOTIFICATION, {
+                    message: `玩家等级提升到 Lv.${level}！`,
+                    type: 'success'
+                });
+            });
         }
 
         gameStateMachine.updatePlayer({
             money: player.money,
-            inventory: player.inventory
+            inventory: player.inventory,
+            level: player.level,
+            exp: player.exp,
+            expToNext: player.expToNext,
+            pokedex: player.pokedex
         });
     }
 

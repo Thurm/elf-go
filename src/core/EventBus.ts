@@ -84,6 +84,8 @@ const GameEvents = {
     BATTLE_ACTION: 'battle:action',
     BATTLE_DAMAGE: 'battle:damage',
     BATTLE_END: 'battle:end',
+    BATTLE_RESULT_CLOSE: 'battle:result_close',
+    BATTLE_SELECT_LEAD: 'battle:select_lead_monster',
 
     // 对话事件
     DIALOG_START: 'dialog:start',
@@ -106,6 +108,7 @@ const GameEvents = {
     DATA_SAVE: 'data:save',
     DATA_LOAD: 'data:load',
     DATA_UPDATE: 'data:update',
+    ITEM_ACQUIRED: 'item:acquired',
 
     // 音效事件
     AUDIO_PLAY: 'audio:play',

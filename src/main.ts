@@ -195,7 +195,7 @@ class Game {
                             menuUI.closeMenu();
                         } else {
                             gameStateMachine.pushState(GameState.MENU);
-                            menuUI.openMenu('main');
+                            eventBus.emit(GameEvents.UI_MENU_OPEN, { menuType: 'main' });
                         }
                     }
                 }
@@ -223,6 +223,7 @@ class Game {
                 }
                 break;
             case GameState.BATTLE:
+            case GameState.PRE_BATTLE_SELECT:
                 // 战斗状态：优先让 battleUI 处理输入
                 if (this.subsystems.battleUI && typeof battleUI !== 'undefined') {
                     const handled = battleUI.handleInput(e);
@@ -359,6 +360,7 @@ class Game {
                 this.renderMapState();
                 break;
             case GameState.BATTLE:
+            case GameState.PRE_BATTLE_SELECT:
                 this.renderBattleState();
                 break;
             case GameState.DIALOG:
@@ -382,6 +384,11 @@ class Game {
         // 如果地图系统已初始化，使用地图系统渲染
         if (this.subsystems.map && typeof mapSystem !== 'undefined') {
             mapSystem.render();
+
+            if (typeof uiManager !== 'undefined') {
+                uiManager.renderMapHUD();
+                uiManager.renderNotifications();
+            }
         } else {
             // 备用渲染
             const gameState = gameStateMachine.getGameState();
@@ -459,6 +466,10 @@ class Game {
         // 使用 MenuUI 渲染菜单（完整菜单系统：主菜单、存档/读档、设置等）
         if (this.subsystems.menuUI && typeof menuUI !== 'undefined') {
             menuUI.render();
+        }
+
+        if (typeof uiManager !== 'undefined') {
+            uiManager.renderNotifications();
         }
     }
 

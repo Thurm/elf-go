@@ -6,26 +6,35 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@400;700&display=swap');
 
 :root {
-    /* 霓虹主色调 */
-    --neon-pink: #ff2a6d;
-    --neon-cyan: #05d9e8;
-    --neon-purple: #d300c5;
-    --neon-yellow: #f9f002;
-    --neon-green: #39ff14;
-    --neon-orange: #ff6b35;
+    --neon-pink: #d98873;
+    --neon-cyan: #8fd3ff;
+    --neon-purple: #9d8fc9;
+    --neon-yellow: #e6c97a;
+    --neon-green: #9bd18b;
+    --neon-orange: #d8a26e;
 
-    /* 复古未来主义色系 */
-    --deep-space: #0d0221;
-    --cosmic-purple: #2d1b4e;
-    --void-black: #0a0a0f;
-    --starlight: #f0f0ff;
-    --electric-blue: #1b98e0;
+    --deep-space: #0d151c;
+    --cosmic-purple: #1d2a35;
+    --void-black: #091015;
+    --starlight: #f2f5f7;
+    --electric-blue: #6ea6c1;
 
-    /* 像素风格阴影 */
-    --pixel-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
-    --neon-glow-pink: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 40px var(--neon-pink);
-    --neon-glow-cyan: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan), 0 0 40px var(--neon-cyan);
-    --neon-glow-purple: 0 0 10px var(--neon-purple), 0 0 20px var(--neon-purple), 0 0 40px var(--neon-purple);
+    --ui-panel: #162029;
+    --ui-panel-alt: #1d2a35;
+    --ui-panel-deep: #0d151c;
+    --ui-border: #587284;
+    --ui-border-strong: #9cb5c7;
+    --ui-text: #f2f5f7;
+    --ui-text-soft: #c0cad2;
+    --ui-text-muted: #8e9ba7;
+    --ui-accent: #8fd3ff;
+    --ui-success: #9bd18b;
+    --ui-warning: #e6c97a;
+    --ui-danger: #d98873;
+    --pixel-shadow: 4px 4px 0 rgba(0, 0, 0, 0.28);
+    --neon-glow-pink: none;
+    --neon-glow-cyan: none;
+    --neon-glow-purple: none;
 }
 
 * {
@@ -36,7 +45,7 @@
 
 body {
     font-family: 'Noto Sans SC', sans-serif;
-    background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 50%, #0a1a2e 100%);
+    background: #0b1116;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -46,7 +55,6 @@ body {
     position: relative;
 }
 
-/* 动态背景 - 扫描线效果 */
 body::before {
     content: '';
     position: fixed;
@@ -54,16 +62,10 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 0, 0, 0.15),
-        rgba(0, 0, 0, 0.15) 1px,
-        transparent 1px,
-        transparent 2px
-    );
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
     pointer-events: none;
     z-index: 9999;
-    animation: scanlines 0.1s linear infinite;
+    opacity: 0.2;
 }
 
 @keyframes scanlines {
@@ -71,7 +73,6 @@ body::before {
     100% { transform: translateY(4px); }
 }
 
-/* 动态背景 - 浮动粒子 */
 body::after {
     content: '';
     position: fixed;
@@ -79,17 +80,11 @@ body::after {
     left: 0;
     width: 100%;
     height: 100%;
-    background-image:
-        radial-gradient(2px 2px at 20px 30px, var(--neon-cyan), transparent),
-        radial-gradient(2px 2px at 40px 70px, var(--neon-pink), transparent),
-        radial-gradient(1px 1px at 90px 40px, var(--neon-yellow), transparent),
-        radial-gradient(2px 2px at 130px 80px, var(--neon-purple), transparent),
-        radial-gradient(1px 1px at 160px 120px, var(--neon-green), transparent);
-    background-size: 200px 200px;
-    animation: twinkle 5s ease-in-out infinite;
+    background-image: radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.15), transparent);
+    background-size: 160px 160px;
     pointer-events: none;
     z-index: 9998;
-    opacity: 0.6;
+    opacity: 0.08;
 }
 
 @keyframes twinkle {
@@ -101,30 +96,15 @@ body::after {
     position: relative;
     width: 800px;
     height: 600px;
-    background: linear-gradient(180deg, #1a0a2e 0%, #0d1b2a 100%);
-    border: 4px solid transparent;
-    border-image: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan), var(--neon-purple)) 1;
-    box-shadow:
-        0 0 20px rgba(255, 42, 109, 0.3),
-        0 0 40px rgba(5, 217, 232, 0.2),
-        inset 0 0 60px rgba(13, 2, 33, 0.5);
-    border-radius: 8px;
+    background: linear-gradient(180deg, #10181f 0%, #0d151c 100%);
+    border: 4px solid var(--ui-border-strong);
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.35);
+    border-radius: 0;
     overflow: hidden;
 }
 
-/* 游戏容器霓虹边框动画 */
 #game-container::before {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    right: -4px;
-    bottom: -4px;
-    background: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan), var(--neon-purple), var(--neon-pink));
-    background-size: 400% 400%;
-    z-index: -1;
-    border-radius: 12px;
-    animation: borderGlow 3s ease infinite;
+    display: none;
 }
 
 @keyframes borderGlow {
@@ -157,12 +137,16 @@ body::after {
 
 /* ========== 商店系统样式 - 复古未来主义风格 ========== */
 .shop-ui {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     z-index: 1000;
+}
+
+.shop-dialog-overlay {
+    position: absolute;
 }
 
 .shop-overlay {
@@ -884,3 +868,229 @@ body::after {
 .rarity-rare { color: var(--neon-cyan); }
 .rarity-epic { color: var(--neon-purple); }
 .rarity-legendary { color: var(--neon-yellow); text-shadow: 0 0 10px var(--neon-yellow); }
+
+/* ========== UI 改造覆盖：简约像素风 ========== */
+.shop-overlay,
+.dialog-overlay {
+    background: rgba(9, 16, 21, 0.78);
+    backdrop-filter: blur(2px);
+}
+
+.shop-container,
+.dialog-box {
+    background: var(--ui-panel);
+    border: 3px solid var(--ui-border-strong);
+    border-radius: 0;
+    box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.28);
+}
+
+.shop-header,
+.shop-tabs,
+.shop-footer,
+.shop-items-panel,
+.shop-detail-panel,
+.detail-description,
+.detail-total,
+.shop-money {
+    background: var(--ui-panel-alt);
+    border-color: var(--ui-border);
+}
+
+.shop-container {
+    animation-duration: 0.18s;
+}
+
+.shop-header::after,
+.shop-item::before,
+.shop-item.selected::after {
+    display: none;
+}
+
+.shop-title,
+.dialog-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 16px;
+    color: var(--ui-text);
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    text-shadow: none;
+    letter-spacing: 0;
+}
+
+.shop-npc,
+.item-type,
+.detail-rarity,
+.detail-owned,
+.shop-detail-empty,
+.dialog-content p,
+.quantity-max-btn,
+.shop-close-btn,
+.shop-tab,
+.dialog-btn,
+.money-value,
+.total-price {
+    font-family: 'Noto Sans SC', sans-serif;
+    text-shadow: none;
+}
+
+.shop-npc,
+.item-type,
+.detail-rarity,
+.detail-owned,
+.shop-detail-empty,
+.detail-total span:first-child,
+.dialog-content p {
+    color: var(--ui-text-muted);
+}
+
+.shop-money,
+.shop-close-btn,
+.quantity-input,
+.quantity-max-btn,
+.quantity-btn,
+.buy-btn,
+.sell-btn,
+.dialog-btn,
+.item-icon,
+.detail-icon {
+    border-radius: 0;
+}
+
+.shop-money {
+    padding: 8px 12px;
+    border: 2px solid var(--ui-border);
+    box-shadow: none;
+}
+
+.money-icon {
+    animation: none;
+}
+
+.money-value,
+.total-price,
+.dialog-price {
+    color: var(--ui-warning);
+}
+
+.shop-tab {
+    color: var(--ui-text-muted);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.shop-tab:hover,
+.shop-tab.active {
+    background: var(--ui-panel);
+    color: var(--ui-text);
+}
+
+.shop-tab.active::after {
+    height: 2px;
+    background: var(--ui-accent);
+    box-shadow: none;
+}
+
+.shop-item {
+    background: transparent;
+    border-left-width: 3px;
+    transition: background 0.15s ease;
+}
+
+.shop-item:hover,
+.shop-item.selected {
+    background: rgba(143, 211, 255, 0.08);
+    transform: none;
+}
+
+.shop-item,
+.detail-header {
+    border-color: var(--rarity-border, var(--ui-border));
+}
+
+.item-icon,
+.detail-icon {
+    background: var(--rarity-bg, var(--ui-panel));
+}
+
+.shop-item.selected {
+    outline: 2px solid var(--ui-accent);
+    outline-offset: -2px;
+}
+
+.item-name,
+.detail-name {
+    color: var(--rarity-text, var(--ui-text)) !important;
+}
+
+.shop-detail-panel,
+.detail-description,
+.detail-total,
+.dialog-box {
+    border-width: 2px;
+}
+
+.detail-description {
+    line-height: 1.6;
+}
+
+.quantity-btn,
+.quantity-max-btn,
+.dialog-btn.cancel,
+.shop-close-btn {
+    background: var(--ui-panel);
+    color: var(--ui-text-soft);
+    border: 2px solid var(--ui-border);
+}
+
+.quantity-btn:hover,
+.quantity-max-btn:hover,
+.dialog-btn.cancel:hover,
+.shop-close-btn:hover {
+    background: var(--ui-panel-alt);
+    color: var(--ui-text);
+    border-color: var(--ui-border-strong);
+    box-shadow: none;
+    transform: none;
+}
+
+.quantity-input {
+    background: var(--ui-panel-deep);
+    border: 2px solid var(--ui-border);
+    color: var(--ui-text);
+}
+
+.buy-btn,
+.sell-btn,
+.dialog-btn.confirm {
+    background: var(--ui-accent);
+    color: var(--ui-panel-deep);
+    border: 2px solid var(--ui-border-strong);
+    box-shadow: none;
+    text-transform: none;
+}
+
+.buy-btn:hover:not(.disabled),
+.sell-btn:hover,
+.dialog-btn.confirm:hover {
+    background: #a8ddff;
+    transform: none;
+    box-shadow: none;
+}
+
+.buy-btn.disabled {
+    background: var(--ui-panel-alt);
+    color: var(--ui-text-muted);
+    border: 2px solid var(--ui-border);
+}
+
+.shop-items-panel::-webkit-scrollbar-track,
+.shop-detail-panel::-webkit-scrollbar-track {
+    background: var(--ui-panel-deep);
+    border-radius: 0;
+}
+
+.shop-items-panel::-webkit-scrollbar-thumb,
+.shop-detail-panel::-webkit-scrollbar-thumb {
+    background: var(--ui-border);
+    border-radius: 0;
+    box-shadow: none;
+}

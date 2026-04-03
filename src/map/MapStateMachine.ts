@@ -415,8 +415,9 @@ class MapStateMachine {
     }
 
     onEnterPortal(oldState, data) {
-        // 开始传送动画
-        this.startAnimation(0.5); // 0.5秒传送动画
+        // 传送状态仅作为锁态，实际过渡由 MapSystem + MapRenderer 编排
+        this.animationTimer = 0;
+        this.animationDuration = 0;
     }
 
     onExitPortal(newState) {
@@ -481,7 +482,7 @@ class MapStateMachine {
 
     onEnterBattle(oldState, data) {
         // 开始战斗
-        gameStateMachine.changeState(GameState.BATTLE);
+        gameStateMachine.pushState(GameState.PRE_BATTLE_SELECT);
         // 由 BattleSystem 统一发射 BATTLE_START（确保数据完整）
     }
 
@@ -635,10 +636,7 @@ class MapStateMachine {
      */
     onAnimationComplete() {
         if (this.currentState === MapState.PORTAL) {
-            // 传送动画完成，执行地图切换
-            const portalData = this.stateData[MapState.PORTAL];
-            this.emit('portalComplete', portalData);
-            this.changeState(MapState.IDLE);
+            // 传送完成改由 MapSystem 显式通知
         } else if (this.currentState === MapState.ENCOUNTER) {
             // 遇敌动画完成，进入战斗
             const encounterData = this.stateData[MapState.ENCOUNTER];
@@ -671,6 +669,18 @@ class MapStateMachine {
      */
     startPortal(data) {
         this.changeState(MapState.PORTAL, data);
+    }
+
+    /**
+     * 完成传送
+     */
+    completePortal() {
+        this.portalPending = false;
+        this.portalData = null;
+
+        if (this.currentState === MapState.PORTAL) {
+            this.changeState(MapState.IDLE);
+        }
     }
 
     /**

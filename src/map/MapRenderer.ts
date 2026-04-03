@@ -24,6 +24,7 @@ const CollisionRenderType = {
 // 地图过渡类型
 const MapTransitionType = {
     NONE: 'none',
+    FADE: 'fade',
     CIRCLE_WIPE: 'circle_wipe',      // 圆形扩散
     SCANLINE: 'scanline',            // 扫描线
     PIXEL_DISSOLVE: 'pixel_dissolve',  // 像素溶解
@@ -32,40 +33,78 @@ const MapTransitionType = {
     VORTEX: 'vortex'                 // 漩涡效果
 };
 
+// 地图统一转场预设
+const MapTransitionPreset = {
+    DEFAULT_OVERWORLD: {
+        name: 'default_overworld',
+        outType: MapTransitionType.FADE,
+        inType: MapTransitionType.FADE,
+        outDuration: 820,
+        inDuration: 680
+    },
+    ENTER_INTERIOR: {
+        name: 'enter_interior',
+        outType: MapTransitionType.FADE,
+        inType: MapTransitionType.FADE,
+        outDuration: 760,
+        inDuration: 560
+    },
+    EXIT_INTERIOR: {
+        name: 'exit_interior',
+        outType: MapTransitionType.FADE,
+        inType: MapTransitionType.FADE,
+        outDuration: 720,
+        inDuration: 620
+    },
+    CROSS_REGION: {
+        name: 'cross_region',
+        outType: MapTransitionType.FADE,
+        inType: MapTransitionType.FADE,
+        outDuration: 820,
+        inDuration: 720
+    }
+};
+
 // 地图视觉主题配置
 const MapVisualThemes = {
     'town_01': {
         name: '新手村',
-        ambientColor: '#4a7c23',
-        neonColor: '#f9f002',
-        secondaryNeon: '#39ff14',
+        spaceType: 'outdoor',
+        regionType: 'village',
+        ambientColor: '#5d7a48',
+        neonColor: '#d7c88a',
+        secondaryNeon: '#8fbf8f',
         fogDensity: 0.05,
         particles: 'fireflies',
-        transitionIn: MapTransitionType.CIRCLE_WIPE,
-        transitionOut: MapTransitionType.NEON_FLASH,
-        skyGradient: ['#0d0221', '#1a0a2e', '#0d1b2a']
+        transitionIn: MapTransitionType.FADE,
+        transitionOut: MapTransitionType.FADE,
+        skyGradient: ['#15222c', '#243744', '#314953']
     },
     'route_01': {
         name: '1号道路',
-        ambientColor: '#5a8c33',
-        neonColor: '#05d9e8',
-        secondaryNeon: '#ff2a6d',
+        spaceType: 'outdoor',
+        regionType: 'route',
+        ambientColor: '#62845e',
+        neonColor: '#8fc4b8',
+        secondaryNeon: '#b6d1a1',
         fogDensity: 0.1,
         particles: 'wind',
-        transitionIn: MapTransitionType.SCANLINE,
-        transitionOut: MapTransitionType.PIXEL_DISSOLVE,
-        skyGradient: ['#0a1628', '#1a2a3e', '#0a1a28']
+        transitionIn: MapTransitionType.FADE,
+        transitionOut: MapTransitionType.FADE,
+        skyGradient: ['#15252d', '#26403f', '#385451']
     },
     'house_01': {
         name: '村长家',
-        ambientColor: '#8b7355',
-        neonColor: '#ff6b35',
-        secondaryNeon: '#d300c5',
+        spaceType: 'indoor',
+        regionType: 'village',
+        ambientColor: '#8b775c',
+        neonColor: '#d8b68a',
+        secondaryNeon: '#a98b73',
         fogDensity: 0.02,
         particles: 'dust',
-        transitionIn: MapTransitionType.SLIDE,
-        transitionOut: MapTransitionType.VORTEX,
-        skyGradient: ['#1a1a1a', '#2a1a1a', '#1a0a0a'],
+        transitionIn: MapTransitionType.FADE,
+        transitionOut: MapTransitionType.FADE,
+        skyGradient: ['#1a1c1e', '#2b2621', '#181411'],
         isIndoor: true
     }
 };
@@ -83,6 +122,13 @@ class MapRenderer {
 
         // 摄像机位置（左上角坐标）
         this.camera = { x: 0, y: 0 };
+        this.cameraTarget = { x: 0, y: 0 };
+        this.cameraConfig = {
+            deadzoneHalfWidth: TILE_SIZE * 2.5,
+            deadzoneHalfHeight: TILE_SIZE * 1.5,
+            smoothing: 0.22,
+            snapThreshold: 0.35
+        };
 
         // 图块图像缓存
         this.tileImages = {};
@@ -110,7 +156,10 @@ class MapRenderer {
             startTime: 0,
             direction: 'in', // 'in' 或 'out'
             oldMapData: null,
-            newMapData: null
+            newMapData: null,
+            midpointReached: false,
+            profileName: MapTransitionPreset.DEFAULT_OVERWORLD.name,
+            profile: MapTransitionPreset.DEFAULT_OVERWORLD
         };
 
         // 当前视觉主题
@@ -173,20 +222,56 @@ class MapRenderer {
      * @private
      */
     _startMapTransition(oldMap, newMap, oldTheme) {
-        const transitionType = oldTheme?.transitionOut || MapTransitionType.NEON_FLASH;
+        const newTheme = MapVisualThemes[newMap?.id] || MapVisualThemes['town_01'];
+        const transitionProfile = this._resolveTransitionProfile(oldMap, newMap, oldTheme, newTheme);
 
         this.transitionState = {
             active: true,
-            type: transitionType,
+            type: transitionProfile.outType,
             progress: 0,
-            duration: 1200,
+            duration: transitionProfile.outDuration,
             startTime: Date.now(),
             direction: 'out',
             oldMapData: oldMap,
             oldTheme: oldTheme,
             newMapData: newMap,
-            midpointReached: false
+            midpointReached: false,
+            profileName: transitionProfile.name,
+            profile: transitionProfile
         };
+    }
+
+    /**
+     * 解析统一转场策略
+     * @param {Object} oldMap - 旧地图
+     * @param {Object} newMap - 新地图
+     * @param {Object} oldTheme - 旧地图主题
+     * @param {Object} newTheme - 新地图主题
+     * @returns {{name:string,outType:string,inType:string,outDuration:number,inDuration:number}}
+     * @private
+     */
+    _resolveTransitionProfile(oldMap, newMap, oldTheme, newTheme) {
+        const oldSpaceType = oldTheme?.spaceType || (oldTheme?.isIndoor ? 'indoor' : 'outdoor');
+        const newSpaceType = newTheme?.spaceType || (newTheme?.isIndoor ? 'indoor' : 'outdoor');
+        const explicitProfile = newTheme?.transitionProfile || oldTheme?.transitionProfile;
+
+        if (explicitProfile && MapTransitionPreset[explicitProfile]) {
+            return MapTransitionPreset[explicitProfile];
+        }
+
+        if (oldSpaceType !== 'indoor' && newSpaceType === 'indoor') {
+            return MapTransitionPreset.ENTER_INTERIOR;
+        }
+
+        if (oldSpaceType === 'indoor' && newSpaceType !== 'indoor') {
+            return MapTransitionPreset.EXIT_INTERIOR;
+        }
+
+        if (oldTheme?.regionType && newTheme?.regionType && oldTheme.regionType !== newTheme.regionType) {
+            return MapTransitionPreset.CROSS_REGION;
+        }
+
+        return MapTransitionPreset.DEFAULT_OVERWORLD;
     }
 
     /**
@@ -194,32 +279,47 @@ class MapRenderer {
      * @param {number} deltaTime - 时间增量
      */
     updateTransition(deltaTime) {
-        if (!this.transitionState.active) return;
+        if (!this.transitionState.active) {
+            return {
+                midpointReached: false,
+                completed: false
+            };
+        }
 
         const state = this.transitionState;
         const elapsed = Date.now() - state.startTime;
         state.progress = Math.min(1, elapsed / state.duration);
+        const transitionEvents = {
+            midpointReached: false,
+            completed: false
+        };
 
-        // 到达中点时切换地图数据
-        if (state.progress >= 0.5 && !state.midpointReached) {
+        // 退场完成后才切换地图数据，避免新地图提前露出
+        if (state.progress >= 1 && !state.midpointReached) {
             state.midpointReached = true;
             state.direction = 'in';
             this.currentMap = state.newMapData;
             this._updateVisualTheme(state.newMapData?.id);
+            transitionEvents.midpointReached = true;
 
             // 选择入场过渡类型
             const newTheme = this.currentTheme;
-            state.type = newTheme?.transitionIn || MapTransitionType.CIRCLE_WIPE;
+            state.type = state.profile?.inType || newTheme?.transitionIn || MapTransitionType.CIRCLE_WIPE;
             state.startTime = Date.now();
             state.progress = 0;
-            state.duration = 1000;
+            state.duration = state.profile?.inDuration || 680;
+
+            return transitionEvents;
         }
 
         // 过渡完成
         if (state.progress >= 1 && state.midpointReached) {
             state.active = false;
             state.type = MapTransitionType.NONE;
+            transitionEvents.completed = true;
         }
+
+        return transitionEvents;
     }
 
     /**
@@ -238,27 +338,87 @@ class MapRenderer {
     updateCamera(playerX, playerY) {
         if (!this.currentMap) return;
 
-        // 计算摄像机目标位置（使玩家居中）
-        const targetCamX = playerX * TILE_SIZE - this.canvas.width / 2 + TILE_SIZE / 2;
-        const targetCamY = playerY * TILE_SIZE - this.canvas.height / 2 + TILE_SIZE / 2;
+        const options = (arguments.length >= 3 && typeof arguments[2] === 'object') ? arguments[2] : {};
+        const snap = Boolean(options.snap);
+        const centerCamX = playerX * TILE_SIZE - this.canvas.width / 2 + TILE_SIZE / 2;
+        const centerCamY = playerY * TILE_SIZE - this.canvas.height / 2 + TILE_SIZE / 2;
+        const centeredTarget = this._clampCamera(centerCamX, centerCamY);
 
-        // 摄像机边界限制
+        if (snap) {
+            this.camera.x = centeredTarget.x;
+            this.camera.y = centeredTarget.y;
+            this.cameraTarget.x = centeredTarget.x;
+            this.cameraTarget.y = centeredTarget.y;
+            this.updateVisibleTiles();
+            return;
+        }
+
+        const playerScreenX = playerX * TILE_SIZE - this.camera.x + TILE_SIZE / 2;
+        const playerScreenY = playerY * TILE_SIZE - this.camera.y + TILE_SIZE / 2;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        const minScreenX = centerX - this.cameraConfig.deadzoneHalfWidth;
+        const maxScreenX = centerX + this.cameraConfig.deadzoneHalfWidth;
+        const minScreenY = centerY - this.cameraConfig.deadzoneHalfHeight;
+        const maxScreenY = centerY + this.cameraConfig.deadzoneHalfHeight;
+
+        let targetCamX = this.camera.x;
+        let targetCamY = this.camera.y;
+
+        if (playerScreenX < minScreenX) {
+            targetCamX -= (minScreenX - playerScreenX);
+        } else if (playerScreenX > maxScreenX) {
+            targetCamX += (playerScreenX - maxScreenX);
+        }
+
+        if (playerScreenY < minScreenY) {
+            targetCamY -= (minScreenY - playerScreenY);
+        } else if (playerScreenY > maxScreenY) {
+            targetCamY += (playerScreenY - maxScreenY);
+        }
+
+        const clampedTarget = this._clampCamera(targetCamX, targetCamY);
+        this.cameraTarget.x = clampedTarget.x;
+        this.cameraTarget.y = clampedTarget.y;
+
+        const smoothing = typeof options.smoothing === 'number' ? options.smoothing : this.cameraConfig.smoothing;
+        this.camera.x += (this.cameraTarget.x - this.camera.x) * smoothing;
+        this.camera.y += (this.cameraTarget.y - this.camera.y) * smoothing;
+
+        if (Math.abs(this.cameraTarget.x - this.camera.x) < this.cameraConfig.snapThreshold) {
+            this.camera.x = this.cameraTarget.x;
+        }
+        if (Math.abs(this.cameraTarget.y - this.camera.y) < this.cameraConfig.snapThreshold) {
+            this.camera.y = this.cameraTarget.y;
+        }
+
+        this.camera.x = Math.round(this.camera.x * 100) / 100;
+        this.camera.y = Math.round(this.camera.y * 100) / 100;
+        this.updateVisibleTiles();
+    }
+
+    /**
+     * 约束摄像机位置
+     * @param {number} targetCamX - 目标X
+     * @param {number} targetCamY - 目标Y
+     * @returns {{x:number,y:number}}
+     * @private
+     */
+    _clampCamera(targetCamX, targetCamY) {
         const mapWidth = this.currentMap.width * TILE_SIZE;
         const mapHeight = this.currentMap.height * TILE_SIZE;
 
-        this.camera.x = Math.max(0, Math.min(targetCamX, mapWidth - this.canvas.width));
-        this.camera.y = Math.max(0, Math.min(targetCamY, mapHeight - this.canvas.height));
+        let x = Math.max(0, Math.min(targetCamX, mapWidth - this.canvas.width));
+        let y = Math.max(0, Math.min(targetCamY, mapHeight - this.canvas.height));
 
-        // 如果地图比画布小，居中显示
         if (mapWidth < this.canvas.width) {
-            this.camera.x = (mapWidth - this.canvas.width) / 2;
+            x = (mapWidth - this.canvas.width) / 2;
         }
         if (mapHeight < this.canvas.height) {
-            this.camera.y = (mapHeight - this.canvas.height) / 2;
+            y = (mapHeight - this.canvas.height) / 2;
         }
 
-        // 更新可见图块范围
-        this.updateVisibleTiles();
+        return { x, y };
     }
 
     /**
@@ -302,7 +462,7 @@ class MapRenderer {
         this.ctx.save();
 
         // 应用摄像机偏移
-        this.ctx.translate(-this.camera.x, -this.camera.y);
+        this.ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
         // 按层级渲染
         this.renderGroundLayer();
@@ -379,7 +539,7 @@ class MapRenderer {
         this.currentMap = mapData;
 
         this.ctx.save();
-        this.ctx.translate(-this.camera.x, -this.camera.y);
+        this.ctx.translate(-Math.round(this.camera.x), -Math.round(this.camera.y));
 
         this.renderGroundLayer();
         this.renderObjectLayer();
@@ -408,6 +568,9 @@ class MapRenderer {
         ctx.save();
 
         switch (state.type) {
+            case MapTransitionType.FADE:
+                this._renderFade(progress, state.direction);
+                break;
             case MapTransitionType.CIRCLE_WIPE:
                 this._renderCircleWipe(centerX, centerY, progress, state.direction);
                 break;
@@ -770,56 +933,28 @@ class MapRenderer {
         ctx.globalAlpha = alpha;
 
         // 背景框
-        const bgWidth = 200;
-        const bgHeight = 50;
+        const bgWidth = 168;
+        const bgHeight = 38;
         const bgX = (this.canvas.width - bgWidth) / 2;
-        const bgY = 80;
+        const bgY = 84;
 
-        const bgGradient = ctx.createLinearGradient(bgX, bgY, bgX + bgWidth, bgY + bgHeight);
-        bgGradient.addColorStop(0, 'rgba(13, 2, 33, 0.9)');
-        bgGradient.addColorStop(0.5, 'rgba(45, 27, 78, 0.95)');
-        bgGradient.addColorStop(1, 'rgba(13, 2, 33, 0.9)');
-
-        ctx.fillStyle = bgGradient;
-        ctx.shadowColor = this.currentTheme.neonColor;
-        ctx.shadowBlur = 20;
-        this._drawMapNameRoundedRect(bgX, bgY, bgWidth, bgHeight, 10);
-        ctx.fill();
-
-        // 边框
+        ctx.fillStyle = 'rgba(13, 21, 28, 0.92)';
+        ctx.fillRect(bgX + 4, bgY + 4, bgWidth, bgHeight);
+        ctx.fillStyle = 'rgba(22, 32, 41, 0.98)';
+        ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
         ctx.strokeStyle = this.currentTheme.neonColor;
         ctx.lineWidth = 2;
-        ctx.stroke();
+        ctx.strokeRect(bgX, bgY, bgWidth, bgHeight);
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bgX + 4, bgY + 4, bgWidth - 8, bgHeight - 8);
 
-        // 地图名称
-        ctx.shadowBlur = 0;
         ctx.fillStyle = this.currentTheme.neonColor;
-        ctx.shadowColor = this.currentTheme.neonColor;
-        ctx.shadowBlur = 10;
-        ctx.font = 'bold 20px sans-serif';
+        ctx.font = 'bold 16px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(name, this.canvas.width / 2, bgY + 33);
+        ctx.fillText(name, this.canvas.width / 2, bgY + 24);
 
         ctx.restore();
-    }
-
-    /**
-     * 绘制地图名称圆角矩形
-     * @private
-     */
-    _drawMapNameRoundedRect(x, y, width, height, radius) {
-        const ctx = this.ctx;
-        ctx.beginPath();
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + width - radius, y);
-        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-        ctx.lineTo(x + width, y + height - radius);
-        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-        ctx.lineTo(x + radius, y + height);
-        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
-        ctx.closePath();
     }
 
     /**
@@ -2670,8 +2805,37 @@ class MapRenderer {
      */
     mapToScreen(mapX, mapY) {
         return {
-            x: mapX * TILE_SIZE - this.camera.x,
-            y: mapY * TILE_SIZE - this.camera.y
+            x: mapX * TILE_SIZE - Math.round(this.camera.x),
+            y: mapY * TILE_SIZE - Math.round(this.camera.y)
+        };
+    }
+
+    /**
+     * 获取摄像机状态快照
+     * @returns {{x:number,y:number,targetX:number,targetY:number,deadzoneWidth:number,deadzoneHeight:number}}
+     */
+    getCameraState() {
+        return {
+            x: this.camera.x,
+            y: this.camera.y,
+            targetX: this.cameraTarget.x,
+            targetY: this.cameraTarget.y,
+            deadzoneWidth: this.cameraConfig.deadzoneHalfWidth * 2,
+            deadzoneHeight: this.cameraConfig.deadzoneHalfHeight * 2
+        };
+    }
+
+    /**
+     * 获取过渡状态快照
+     * @returns {{active:boolean,type:string,progress:number,direction:string}}
+     */
+    getTransitionState() {
+        return {
+            active: this.transitionState.active,
+            type: this.transitionState.type,
+            progress: this.transitionState.progress,
+            direction: this.transitionState.direction,
+            profile: this.transitionState.profileName
         };
     }
 

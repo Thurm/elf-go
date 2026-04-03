@@ -89,6 +89,7 @@ const BattleUIState = {
     IDLE: 'idle',                    // 空闲
     SHOWING_MESSAGE: 'showing_message', // 显示消息中
     SELECTING_ACTION: 'selecting_action', // 选择行动
+    SELECTING_MONSTER: 'selecting_monster', // 选择怪兽
     SELECTING_SKILL: 'selecting_skill',   // 选择技能
     SELECTING_TARGET: 'selecting_target', // 选择目标
     ANIMATING: 'animating'           // 动画播放中
@@ -133,6 +134,30 @@ function getBattleMonsterTemplates() {
     return typeof window.MonsterTemplates !== 'undefined' ? window.MonsterTemplates : {};
 }
 
+function getElementLabel(elementType) {
+    const labels = {
+        [getBattleElementType('FIRE')]: '火',
+        [getBattleElementType('WATER')]: '水',
+        [getBattleElementType('GRASS')]: '草',
+        [getBattleElementType('ELECTRIC')]: '电',
+        [getBattleElementType('NORMAL')]: '普'
+    };
+
+    return labels[elementType] || String(elementType || '未知');
+}
+
+function getElementColor(elementType) {
+    const colors = {
+        [getBattleElementType('FIRE')]: '#ef4444',
+        [getBattleElementType('WATER')]: '#3b82f6',
+        [getBattleElementType('GRASS')]: '#22c55e',
+        [getBattleElementType('ELECTRIC')]: '#f59e0b',
+        [getBattleElementType('NORMAL')]: '#94a3b8'
+    };
+
+    return colors[elementType] || '#94a3b8';
+}
+
 const getUIColor = getBattleUIColor;
 const getElementType = getBattleElementType;
 const getMonsterTemplates = getBattleMonsterTemplates;
@@ -146,12 +171,18 @@ function getGameEvents() {
         BATTLE_START: 'battle:start',
         BATTLE_ACTION: 'battle:action',
         BATTLE_DAMAGE: 'battle:damage',
-        BATTLE_END: 'battle:end'
+        BATTLE_END: 'battle:end',
+        BATTLE_RESULT_CLOSE: 'battle:result_close',
+        BATTLE_SELECT_LEAD: 'battle:select_lead_monster'
     };
 }
 
 function getUIManager() {
     return typeof window.uiManager !== 'undefined' ? window.uiManager : null;
+}
+
+function getItemTemplates() {
+    return typeof window.ItemTemplates !== 'undefined' ? window.ItemTemplates : {};
 }
 
 /**
@@ -190,6 +221,16 @@ class BattleUI {
     messageTimer: number;
     messageCallback: any;
 
+    // 战斗结算
+    battleResult: BattleResult | null;
+    battleResultSummary: BattleRewardSummary | null;
+
+    // 强制换怪
+    mustSwitchMonster: boolean;
+
+    // 怪兽菜单模式
+    monsterMenuMode: 'switch' | 'lead';
+
     // 等待执行的 action（用于消息确认后执行）
     pendingAction: any;
 
@@ -225,6 +266,16 @@ class BattleUI {
         this.currentMessage = null;
         this.messageTimer = 0;
         this.messageCallback = null;
+
+        // 战斗结算
+        this.battleResult = null;
+        this.battleResultSummary = null;
+
+        // 强制换怪
+        this.mustSwitchMonster = false;
+
+        // 怪兽菜单模式
+        this.monsterMenuMode = 'switch';
 
         // 等待执行的 action（用于消息确认后执行）
         this.pendingAction = null;
@@ -304,6 +355,10 @@ class BattleUI {
         this.playerMonster = data.playerMonster;
         this.enemyMonster = data.enemyMonster;
         this.battleLog = [];
+        this.battleResult = null;
+        this.battleResultSummary = null;
+        this.mustSwitchMonster = false;
+        this.monsterMenuMode = 'switch';
         this.state = BattleUIState.SHOWING_MESSAGE;
 
         // 显示开始消息
@@ -339,6 +394,25 @@ class BattleUI {
                 break;
             case 'switch':
                 this.playerMonster = data.monster;
+                this.mustSwitchMonster = false;
+                break;
+            case 'need_switch':
+                this.openMonsterMenu(data?.availableMonsters || [], true, data?.faintedMonster);
+                break;
+            case 'prepare_wild_battle':
+                this.enemyMonster = data?.enemyMonster || data?.monster || this.enemyMonster;
+                this.playerMonster = null;
+                this.battleResult = null;
+                this.battleResultSummary = null;
+                this.showMessage(data?.prompt || '发现了野生怪兽！', () => {
+                    this.openMonsterMenu(
+                        data?.availableMonsters || [],
+                        true,
+                        null,
+                        data?.title || '选择首发怪兽',
+                        'lead'
+                    );
+                });
                 break;
             case 'use_item':
             case 'status_effect':
@@ -461,8 +535,23 @@ class BattleUI {
      */
     onBattleEnd(data) {
         this.state = BattleUIState.IDLE;
-        this.currentMenu = null;
+        this.currentMessage = null;
+        this.messageCallback = null;
+        this.pendingAction = null;
+        this.mustSwitchMonster = false;
+        this.monsterMenuMode = 'switch';
         this.menuStack = [];
+        this.selectedIndex = 0;
+        this.battleResult = data || null;
+        this.battleResultSummary = data?.summary || null;
+        this.currentMenu = {
+            type: 'battle_result',
+            title: '战斗结算',
+            items: [
+                { id: 'continue', text: '继续', action: 'close_result' }
+            ],
+            layout: 'result'
+        };
     }
 
     /**
@@ -613,6 +702,48 @@ class BattleUI {
     }
 
     /**
+     * 打开怪兽切换菜单
+     * @param {BattleMonster[] | PlayerMonster[]} availableMonsters - 可选怪兽
+     * @param {boolean} forced - 是否强制切换
+     * @param {BattleMonster | PlayerMonster | null} faintedMonster - 倒下的怪兽
+     */
+    openMonsterMenu(availableMonsters = [], forced = false, faintedMonster = null, title = '', mode: 'switch' | 'lead' = 'switch') {
+        const gameState = gameStateMachine.getGameState();
+        const monsters = (availableMonsters.length > 0 ? availableMonsters : (gameState?.player?.party || []))
+            .filter(monster => monster && monster !== this.playerMonster && monster.stats && monster.stats.hp > 0);
+
+        if (monsters.length === 0) {
+            this.showMessage('没有可切换的怪兽！');
+            return;
+        }
+
+        const items: BattleUIBattleMenuItem[] = monsters.map(monster => ({
+            id: monster.id,
+            text: `${monster.nickname || monster.name} Lv.${monster.level} HP ${monster.stats.hp}/${monster.stats.maxHp}`,
+            monster,
+            action: 'switch_monster'
+        }));
+
+        if (!forced) {
+            items.push({ id: 'back', text: '返回', action: 'back' });
+            this.menuStack.push({ menu: this.currentMenu, selectedIndex: this.selectedIndex });
+        }
+
+        this.mustSwitchMonster = forced;
+        this.monsterMenuMode = mode;
+        this.state = BattleUIState.SELECTING_MONSTER;
+        this.currentMenu = {
+            type: mode === 'lead' ? 'pre_battle_party' : 'monster_party',
+            title: title || (forced
+                ? `${faintedMonster?.nickname || faintedMonster?.name || '当前怪兽'}失去战斗能力`
+                : '选择怪兽'),
+            items,
+            layout: 'list'
+        };
+        this.selectedIndex = 0;
+    }
+
+    /**
      * 返回上一级菜单
      */
     backToPreviousMenu() {
@@ -682,13 +813,78 @@ class BattleUI {
             case 'bag':
                 this.handleBagSelection(item);
                 break;
+            case 'monster':
+            case 'monster_party':
+            case 'pre_battle_party':
+                this.handleMonsterSelection(item);
+                break;
             case 'capture':
                 this.handleCaptureSelection(item);
                 break;
             case 'capture_end':
                 this.handleCaptureEndSelection(item);
                 break;
+            case 'result':
+            case 'battle_result':
+                this.handleBattleResultSelection(item);
+                break;
         }
+    }
+
+    /**
+     * 处理结算面板选择
+     * @param {Object} item - 选中的菜单项
+     */
+    handleBattleResultSelection(item) {
+        const eventBus = getEventBus();
+        if (item.action === 'close_result') {
+            this.currentMenu = null;
+            this.menuStack = [];
+            this.selectedIndex = 0;
+            this.state = BattleUIState.IDLE;
+            eventBus.emit(getGameEvents().BATTLE_RESULT_CLOSE, {
+                result: this.battleResult?.result
+            });
+            this.battleResult = null;
+            this.battleResultSummary = null;
+        }
+    }
+
+    /**
+     * 处理怪兽切换选择
+     * @param {BattleUIBattleMenuItem} item - 菜单项
+     */
+    handleMonsterSelection(item) {
+        if (item.action === 'back') {
+            this.mustSwitchMonster = false;
+            this.monsterMenuMode = 'switch';
+            this.backToPreviousMenu();
+            return;
+        }
+
+        if (!item.monster?.id) {
+            this.showMessage('无法切换到该怪兽');
+            return;
+        }
+
+        this.currentMenu = null;
+        this.menuStack = [];
+        this.selectedIndex = 0;
+        this.state = BattleUIState.ANIMATING;
+
+        if (this.monsterMenuMode === 'lead') {
+            getEventBus().emit(getGameEvents().BATTLE_SELECT_LEAD, {
+                monsterId: item.monster.id
+            });
+        } else {
+            getEventBus().emit('battle:switch_monster', {
+                monsterId: item.monster.id,
+                forced: this.mustSwitchMonster
+            });
+        }
+
+        this.mustSwitchMonster = false;
+        this.monsterMenuMode = 'switch';
     }
 
     /**
@@ -698,11 +894,11 @@ class BattleUI {
     handleCaptureSelection(item) {
         const eventBus = getEventBus();
         const choice = item.action === 'capture_yes' ? 'yes' : 'no';
-        eventBus.emit('battle:capture_decision', { choice });
-
         this.currentMenu = null;
         this.menuStack = [];
         this.state = BattleUIState.ANIMATING;
+
+        eventBus.emit('battle:capture_decision', { choice });
     }
 
     /**
@@ -736,7 +932,7 @@ class BattleUI {
                 this.openBagMenu();
                 break;
             case 'monster':
-                eventBus.emit('battle:switch_monster');
+                this.openMonsterMenu();
                 break;
             case 'run':
                 eventBus.emit('battle:flee');
@@ -989,20 +1185,27 @@ class BattleUI {
 
         // 绘制名称和HP条
         const name = this.enemyMonster.nickname || this.enemyMonster.name;
+        const level = this.enemyMonster.level || 1;
         const currentHp = this.enemyMonster.stats.hp;
         const maxHp = this.enemyMonster.stats.maxHp || this.enemyMonster.stats.hp;
+        const template = getMonsterTemplates()[this.enemyMonster.monsterId] || {};
+        const enemyType = this.enemyMonster.type || template.type || getElementType('NORMAL');
 
         ctx.fillStyle = getUIColor('TEXT');
         ctx.font = 'bold 18px monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(name, panelX + 15, panelY + 30);
+        ctx.fillText(`${name} Lv.${level}`, panelX + 15, panelY + 28);
+
+        ctx.fillStyle = getUIColor('LIGHT_BLUE');
+        ctx.font = '14px monospace';
+        ctx.fillText(`属性: ${getElementLabel(enemyType)}`, panelX + 15, panelY + 46);
 
         // 渲染HP条
         const uiManager = getUIManager();
         if (uiManager && uiManager.renderHPBar) {
-            uiManager.renderHPBar(panelX + 15, panelY + 40, panelWidth - 30, currentHp, maxHp, true);
+            uiManager.renderHPBar(panelX + 15, panelY + 52, panelWidth - 30, currentHp, maxHp, true);
         } else {
-            this._renderSimpleHPBar(panelX + 15, panelY + 40, panelWidth - 30, currentHp, maxHp);
+            this._renderSimpleHPBar(panelX + 15, panelY + 52, panelWidth - 30, currentHp, maxHp);
         }
 
         // 渲染状态效果图标
@@ -1502,11 +1705,312 @@ class BattleUI {
     _renderMenu() {
         if (!this.currentMenu) return;
 
+        if (this.currentMenu.type === 'result' || this.currentMenu.type === 'battle_result') {
+            this._renderBattleResultPanel();
+            return;
+        }
+
+        if (this.currentMenu.type === 'monster' || this.currentMenu.type === 'monster_party' || this.currentMenu.type === 'pre_battle_party') {
+            this._renderMonsterSelectionMenu();
+            return;
+        }
+
         if (this.currentMenu.layout === 'grid') {
             this._renderGridMenu();
         } else {
             this._renderListMenu();
         }
+    }
+
+    /**
+     * 渲染战斗结算面板
+     * @private
+     */
+    _renderBattleResultPanel() {
+        const ctx = this.ctx;
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        const result = this.battleResult;
+        const summary = this.battleResultSummary || result?.summary || null;
+        const itemTemplates = getItemTemplates();
+
+        if (!result) {
+            return;
+        }
+
+        const panelWidth = canvasWidth - 120;
+        const panelHeight = canvasHeight - 120;
+        const panelX = 60;
+        const panelY = 60;
+        const buttonSelected = this.selectedIndex === 0;
+
+        const resultTitleMap = {
+            victory: '胜利',
+            defeat: '失败',
+            flee: '成功逃跑',
+            capture: '收服成功'
+        };
+
+        const resultColorMap = {
+            victory: getUIColor('PRIMARY_GREEN'),
+            defeat: getUIColor('PRIMARY_RED'),
+            flee: getUIColor('PRIMARY_YELLOW'),
+            capture: getUIColor('PRIMARY_BLUE')
+        };
+
+        const summaryLines = [
+            `结果：${resultTitleMap[result.result] || result.result}`,
+            `怪兽经验：${summary?.expGained ?? result.exp ?? 0}`,
+            `玩家经验：${result.playerExp || 0}`,
+            `获得金钱：￥${summary?.moneyGained ?? 0}`,
+            `掉落奖励：${summary?.items?.length ?? (result.rewards || []).length}`
+        ];
+
+        if (result.monsterId) {
+            const monsterTemplate = getMonsterTemplates()[result.monsterId];
+            if (monsterTemplate) {
+                summaryLines.splice(1, 0, `目标：${monsterTemplate.name}`);
+            }
+        }
+
+        if (result.playerLevelUps && result.playerLevelUps.length > 0) {
+            summaryLines.push(`升级：Lv.${result.playerLevelUps.join(' / Lv.')}`);
+        }
+
+        if (summary?.monsterLevelUps?.length) {
+            summaryLines.push(`队伍升级：${summary.monsterLevelUps.length}只`);
+        }
+
+        const rewardLines = (summary?.items || []).slice(0, 4).map(item => {
+            const template = itemTemplates[item.itemId];
+            return `- ${template?.name || item.itemId} x${item.quantity}`;
+        });
+
+        if (rewardLines.length === 0) {
+            (result.rewards || []).slice(0, 4).forEach(itemId => {
+                const template = itemTemplates[itemId];
+                rewardLines.push(`- ${template?.name || itemId}`);
+            });
+        }
+
+        const logLines = (result.battleLog || []).slice(-4).map(log => `- ${log}`);
+
+        this._drawDialogBox(panelX, panelY, panelWidth, panelHeight);
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = 'bold 28px monospace';
+        ctx.fillText('战斗结算', panelX + 28, panelY + 42);
+
+        ctx.fillStyle = resultColorMap[result.result] || getUIColor('TEXT');
+        ctx.font = 'bold 24px monospace';
+        ctx.fillText(resultTitleMap[result.result] || result.result, panelX + panelWidth - 190, panelY + 42);
+
+        ctx.fillStyle = getUIColor('LIGHT_GRAY');
+        ctx.font = '18px monospace';
+        summaryLines.forEach((line, index) => {
+            ctx.fillText(line, panelX + 30, panelY + 90 + index * 34);
+        });
+
+        const rewardSectionY = panelY + 280;
+        ctx.fillStyle = getUIColor('LIGHT_BLUE');
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText('奖励', panelX + 30, rewardSectionY);
+
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = '16px monospace';
+        if (rewardLines.length === 0) {
+            ctx.fillText('本次没有获得额外掉落。', panelX + 30, rewardSectionY + 34);
+        } else {
+            rewardLines.forEach((line, index) => {
+                ctx.fillText(line, panelX + 30, rewardSectionY + 34 + index * 26);
+            });
+        }
+
+        const logSectionY = panelY + 280;
+        const logX = panelX + panelWidth / 2 + 10;
+        ctx.fillStyle = getUIColor('LIGHT_BLUE');
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText('战斗记录', logX, logSectionY);
+
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = '15px monospace';
+        if (logLines.length === 0) {
+            ctx.fillText('暂无结算日志。', logX, logSectionY + 34);
+        } else {
+            logLines.forEach((line, index) => {
+                this._wrapText(line, logX, logSectionY + 34 + index * 24, panelWidth / 2 - 50, 22);
+            });
+        }
+
+        const buttonX = panelX + panelWidth - 160;
+        const buttonY = panelY + panelHeight - 70;
+        ctx.fillStyle = buttonSelected ? getUIColor('PRIMARY_BLUE') : getUIColor('DARK_GRAY');
+        ctx.fillRect(buttonX, buttonY, 110, 40);
+        ctx.strokeStyle = getUIColor('LIGHT_BLUE');
+        ctx.lineWidth = 2;
+        ctx.strokeRect(buttonX, buttonY, 110, 40);
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.textAlign = 'center';
+        ctx.font = '18px monospace';
+        ctx.fillText(`${buttonSelected ? '▶ ' : ''}继续`, buttonX + 55, buttonY + 26);
+    }
+
+    /**
+     * 渲染怪兽选择菜单（含详情预览）
+     * @private
+     */
+    _renderMonsterSelectionMenu() {
+        const ctx = this.ctx;
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        const items = this.currentMenu.items || [];
+        const selectedItem = items[this.selectedIndex];
+        const selectedMonster = selectedItem?.monster || items.find(item => item?.monster)?.monster || null;
+        const enemyMonster = this.enemyMonster;
+
+        const listWidth = 330;
+        const listX = 40;
+        const listY = 150;
+        const itemHeight = 40;
+        const listHeight = items.length * itemHeight + 80;
+
+        const detailX = listX + listWidth + 24;
+        const detailY = 150;
+        const detailWidth = canvasWidth - detailX - 40;
+        const detailHeight = canvasHeight - detailY - 40;
+
+        this._drawDialogBox(listX, listY, listWidth, listHeight);
+        this._drawDialogBox(detailX, detailY, detailWidth, detailHeight);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = 'bold 22px monospace';
+        ctx.fillText(this.currentMenu.title || '选择怪兽', listX + listWidth / 2, listY + 34);
+
+        const prompt = this.monsterMenuMode === 'lead'
+            ? '遭遇野生怪兽，选择首发成员'
+            : (this.mustSwitchMonster ? '当前怪兽倒下，请立即更换' : '选择准备出战的怪兽');
+        ctx.fillStyle = getUIColor('LIGHT_GRAY');
+        ctx.font = '14px monospace';
+        ctx.fillText(prompt, listX + listWidth / 2, listY + 58);
+
+        ctx.font = '18px monospace';
+        ctx.textAlign = 'left';
+        const startY = listY + 80;
+        items.forEach((item, i) => {
+            const isSelected = i === this.selectedIndex;
+            const itemY = startY + i * itemHeight;
+
+            if (isSelected) {
+                ctx.fillStyle = getUIColor('PRIMARY_BLUE');
+                ctx.fillRect(listX + 10, itemY, listWidth - 20, itemHeight - 6);
+                ctx.fillStyle = getUIColor('TEXT');
+            } else {
+                ctx.fillStyle = getUIColor('LIGHT_GRAY');
+            }
+
+            const prefix = isSelected ? '▶ ' : '  ';
+            ctx.fillText(prefix + item.text, listX + 20, itemY + 25);
+        });
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = 'bold 22px monospace';
+        ctx.fillText(this.monsterMenuMode === 'lead' ? '战前预览' : '怪兽详情', detailX + 24, detailY + 34);
+
+        if (enemyMonster) {
+            this._renderMonsterPreviewCard(
+                detailX + 20,
+                detailY + 54,
+                detailWidth - 40,
+                this.monsterMenuMode === 'lead' ? 150 : 120,
+                enemyMonster,
+                '敌方情报',
+                true
+            );
+        }
+
+        if (selectedMonster) {
+            const cardY = detailY + (enemyMonster ? (this.monsterMenuMode === 'lead' ? 220 : 180) : 60);
+            const cardHeight = detailHeight - (cardY - detailY) - 20;
+            this._renderMonsterPreviewCard(
+                detailX + 20,
+                cardY,
+                detailWidth - 40,
+                Math.max(cardHeight, 220),
+                selectedMonster,
+                this.monsterMenuMode === 'lead' ? '我方首发预览' : '当前选择',
+                false
+            );
+        }
+    }
+
+    /**
+     * 渲染怪兽预览卡片
+     * @private
+     */
+    _renderMonsterPreviewCard(x, y, width, height, monster, title, isEnemy = false) {
+        const ctx = this.ctx;
+        const template = getMonsterTemplates()[monster?.monsterId] || {};
+        const type = monster?.type || template.type || getElementType('NORMAL');
+        const typeColor = getElementColor(type);
+        const skills = (monster?.skills || []).slice(0, 4).map(skillRef => {
+            const skillId = typeof skillRef === 'string' ? skillRef : skillRef.skillId;
+            return getSkillTemplates()[skillId]?.name || skillId || '未知技能';
+        });
+
+        this._drawDialogBox(x, y, width, height);
+
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = 'bold 18px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(title, x + 18, y + 28);
+
+        ctx.fillStyle = typeColor;
+        ctx.fillRect(x + 18, y + 42, 110, 26);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 15px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(getElementLabel(type), x + 73, y + 60);
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText(`${monster?.nickname || monster?.name || '未知'} Lv.${monster?.level || 1}`, x + 145, y + 62);
+
+        const spriteX = x + 70;
+        const spriteY = y + Math.min(height - 70, 120);
+        this._renderMonsterSprite(spriteX, spriteY, monster, isEnemy);
+
+        const textX = x + 145;
+        let lineY = y + 98;
+        ctx.font = '16px monospace';
+        ctx.fillStyle = getUIColor('LIGHT_GRAY');
+        ctx.fillText(`HP ${monster?.stats?.hp || 0}/${monster?.stats?.maxHp || 0}`, textX, lineY);
+        lineY += 26;
+        ctx.fillText(`ATK ${monster?.stats?.atk || 0}  DEF ${monster?.stats?.def || 0}  SPD ${monster?.stats?.spd || 0}`, textX, lineY);
+        lineY += 26;
+        ctx.fillText(`SPA ${monster?.stats?.spAtk || 0}  SDF ${monster?.stats?.spDef || 0}`, textX, lineY);
+        lineY += 30;
+
+        if (template.profile?.description) {
+            ctx.fillStyle = getUIColor('TEXT');
+            ctx.font = '15px monospace';
+            this._wrapText(template.profile.description, textX, lineY, width - 170, 22);
+            lineY += 52;
+        }
+
+        ctx.fillStyle = getUIColor('LIGHT_BLUE');
+        ctx.font = 'bold 16px monospace';
+        ctx.fillText('技能', textX, lineY);
+        lineY += 24;
+
+        ctx.fillStyle = getUIColor('TEXT');
+        ctx.font = '14px monospace';
+        skills.forEach((skillName, index) => {
+            ctx.fillText(`- ${skillName}`, textX, lineY + index * 20);
+        });
     }
 
     /**

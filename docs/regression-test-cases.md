@@ -5,6 +5,9 @@
 - **框架**: Playwright
 - **配置**: docs/playwright.config.ts
 - **测试文件**: docs/tests/example.spec.ts
+- **UI 专项测试**: `docs/tests/ui-shop-host.spec.ts`、`docs/tests/ui-dialog-menu-visual.spec.ts`
+- **地图 HUD 测试**: `docs/tests/ui-map-hud.spec.ts`
+- **镜头与切图测试**: `docs/tests/ui-map-camera-transition.spec.ts`
 - **基础URL**: http://127.0.0.1:4173
 
 ---
@@ -32,6 +35,16 @@
 | TC-005 | 地图菜单关闭后进入战斗时不应残留旧菜单状态 | 验证战斗时 mapMenuState=closed, battleMenuType=action |
 | TC-006 | 菜单关闭后经历战斗返回地图，仍可重新打开地图菜单 | 验证战斗返回后菜单可正常重新打开 |
 
+### 3.1 UI 专项 - 菜单与商店
+
+| ID | 用例名称 | 测试内容 |
+|----|---------|---------|
+| UI-001 | 商店界面应挂载到 `#ui-layer` 并随关闭完成清理 | 验证宿主层为 `#ui-layer`，关闭后 DOM 清空 |
+| UI-002 | 购买确认弹层应复用 `#ui-layer` 宿主 | 验证确认弹层不再直接挂到 `body` |
+| UI-003 | 地图菜单应维持稳定的打开/关闭状态切换 | 验证 `MAP -> MENU -> MAP` 闭环与主菜单首项 |
+| UI-004 | 地图 HUD 应返回区域、资金、领队与默认提示 | 验证地图态 HUD 快照基础字段 |
+| UI-005 | 镜头应保留 dead zone，小范围位移不立即推镜 | 验证 dead zone 生效 |
+
 ### 4. 对话系统
 
 | ID | 用例名称 | 测试内容 |
@@ -41,6 +54,11 @@
 | TC-009 | 与村长完整对话后应获得初始怪兽、物品并开启任务 | 验证获得水龙、5药水+10精灵球、开启 quest_main_02 |
 | TC-010 | 与村长对话时应能使用真实键盘输入选择并正常关闭对话框 | 验证键盘方向键选择、Enter 确认的完整流程 |
 | TC-011 | 村长家在领取前应展示三只可选初始精灵，领取后不再展示 | 验证领取前后展示状态切换 |
+| UI-006 | 对话框应展示 speaker/text 并可通过键盘推进 | 验证对话框可见、文本非空、按键推进成功 |
+| UI-007 | 地图 HUD 应根据 NPC 与传送点切换交互提示 | 验证靠近交互目标时的提示切换 |
+| UI-008 | 镜头应平滑追随远距离位移，并在切图完成后 snap 到目标位置 | 验证切图过程中锁输入，结束后 camera 与 target 对齐 |
+| UI-009 | 从新手村进入村长家时应先完成退场，再提交新地图 | 验证退场期间仍保持旧地图上下文 |
+| UI-010 | 从 1 号道路回新手村时应使用一致 fade 转场并在结束后完成落位 | 验证回村转场类型和最终落位 |
 
 ### 5. 系统回归流程
 
@@ -80,15 +98,16 @@
 | prepareWildBattle(page, monsterId, level) | 准备野生战斗 |
 | skipBattleIntro(page) | 跳过战斗开场白 |
 | forceSuccessfulFlee(page) | 强制成功逃跑 |
+| openShop(page, shopId) | 以测试数据直接打开商店 |
 
 ---
 
 ## 运行测试
 
 ```bash
-cd docs
-npm install
-npx playwright test
+npm --prefix docs exec playwright test
 ```
 
-测试报告生成位置: `docs/playwright-report/
+测试报告生成位置: `docs/playwright-report/`
+
+更多 UI 专项回归说明见 `docs/testing/ui-regression-test-cases.md`。

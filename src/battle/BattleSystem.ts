@@ -36,6 +36,9 @@ class BattleSystem {
     awaitingCaptureChoice: boolean;
     captureAfterVictory: boolean;
     lastDefeatedEnemy: BattleMonster | null;
+    awaitingForcedSwitch: boolean;
+    forcedSwitchMode: 'resume_turn' | 'next_turn' | null;
+    pendingWildEnemy: BattleMonster | null;
 
     constructor() {
         // 战斗状态
@@ -61,6 +64,9 @@ class BattleSystem {
         this.awaitingCaptureChoice = false;
         this.captureAfterVictory = false;
         this.lastDefeatedEnemy = null;
+        this.awaitingForcedSwitch = false;
+        this.forcedSwitchMode = null;
+        this.pendingWildEnemy = null;
 
         // 绑定事件监听
         this.bindEvents();
@@ -77,7 +83,7 @@ class BattleSystem {
                 console.warn('[BattleSystem] 未找到怪物，无法进行战斗');
                 return;
             }
-            this.startWildBattle(encounter.monsterId || encounter, encounter.level);
+            this.prepareWildBattle(encounter.monsterId || encounter, encounter.level);
         });
 
         // 监听战斗开始事件
@@ -128,8 +134,32 @@ class BattleSystem {
             this.endBattle('capture');
         });
 
-        eventBus.on('battle:switch_monster', () => {
-            console.log('[BattleSystem] 切换怪兽功能待实现');
+        eventBus.on(GameEvents.BATTLE_RESULT_CLOSE, () => {
+            this.finalizeBattle();
+        });
+
+        eventBus.on('battle:switch_monster', (data) => {
+            const monsterId = data?.monsterId;
+            if (!monsterId) {
+                return;
+            }
+
+            const selectedMonster = this.playerParty.find(monster => monster.id === monsterId);
+            if (!selectedMonster) {
+                this.addLog('未找到可切换的怪兽！');
+                return;
+            }
+
+            this.playerSwitchMonster(selectedMonster, data?.forced === true);
+        });
+
+        eventBus.on(GameEvents.BATTLE_SELECT_LEAD, (data) => {
+            const monsterId = data?.monsterId;
+            if (!monsterId || !this.pendingWildEnemy) {
+                return;
+            }
+
+            this.startWildBattle(this.pendingWildEnemy, this.pendingWildEnemy.level || 1, monsterId);
         });
     }
 
@@ -225,14 +255,34 @@ class BattleSystem {
      * @param {Object|string} monster - 野生怪兽或怪兽ID
      * @param {number} [level=5] - 等级
      */
-    startWildBattle(monster, level = 5) {
+    startWildBattle(monster, level = 5, leadMonsterId = null) {
+        const currentState = gameStateMachine.getCurrentState();
+        if (!leadMonsterId && currentState !== GameState.BATTLE && currentState !== GameState.PRE_BATTLE_SELECT) {
+            this.prepareWildBattle(monster, level);
+            return;
+        }
+
+        if (currentState === GameState.PRE_BATTLE_SELECT) {
+            gameStateMachine.pushState(GameState.BATTLE);
+        } else if (currentState !== GameState.BATTLE) {
+            gameStateMachine.changeState(GameState.BATTLE);
+        }
+
         this.isWildBattle = true;
         this.canFlee = true;
 
         // 获取玩家队伍
         const gameState = gameStateMachine.getGameState();
-        this.playerParty = gameState.player ? gameState.player.party || [] : [];
+        this.playerParty = gameState?.player ? gameState.player.party || [] : [];
         this.currentPlayerMonster = this.playerParty.find(m => m.stats.hp > 0);
+
+        // 支持指定首发怪兽
+        if (leadMonsterId) {
+            const selectedLead = this.playerParty.find(m => m.id === leadMonsterId && m.stats?.hp > 0);
+            if (selectedLead) {
+                this.currentPlayerMonster = selectedLead;
+            }
+        }
 
         // 设置敌方
         const enemyMonster = typeof monster === 'string' || !monster?.stats
@@ -245,7 +295,59 @@ class BattleSystem {
         this.enemyParty = [enemyMonster];
         this.currentEnemyMonster = enemyMonster;
 
+        if (gameState?.player && enemyMonster.monsterId) {
+            registerMonsterInPokedex(gameState.player, enemyMonster.monsterId, 'seen');
+            gameStateMachine.updatePlayer({ pokedex: gameState.player.pokedex });
+        }
+
+        this.pendingWildEnemy = null;
+
         this._initBattle();
+    }
+
+    /**
+     * 遇敌后先准备首发怪兽选择
+     * @param {BattleMonster|string} monster
+     * @param {number} level
+     */
+    prepareWildBattle(monster, level = 5) {
+        const gameState = gameStateMachine.getGameState();
+        this.playerParty = gameState?.player ? gameState.player.party || [] : [];
+
+        if (gameStateMachine.getCurrentState() === GameState.MAP) {
+            gameStateMachine.pushState(GameState.PRE_BATTLE_SELECT);
+        }
+
+        const availableMonsters = this.playerParty.filter(monsterItem => monsterItem?.stats && monsterItem.stats.hp > 0);
+        if (availableMonsters.length === 0) {
+            console.warn('[BattleSystem] 玩家没有可出战怪兽，无法开始战斗');
+            return;
+        }
+
+        const enemyMonster = typeof monster === 'string' || !monster?.stats
+            ? this.createEnemyMonster(monster, level)
+            : monster;
+
+        if (!enemyMonster) {
+            console.warn('[BattleSystem] 敌方怪物创建失败，取消战斗');
+            return;
+        }
+
+        this.pendingWildEnemy = enemyMonster;
+        this.currentEnemyMonster = enemyMonster;
+
+        if (gameState?.player && enemyMonster.monsterId) {
+            registerMonsterInPokedex(gameState.player, enemyMonster.monsterId, 'seen');
+            gameStateMachine.updatePlayer({ pokedex: gameState.player.pokedex });
+        }
+
+        eventBus.emit(GameEvents.BATTLE_ACTION, {
+            type: 'prepare_wild_battle',
+            enemyMonster,
+            availableMonsters,
+            title: '选择首发怪兽',
+            prompt: `野生的${enemyMonster.name}出现了！`
+        });
     }
 
     /**
@@ -313,6 +415,10 @@ class BattleSystem {
 
         // 处理回合开始时的状态效果
         this.processTurnStartStatus();
+
+        if (this.awaitingForcedSwitch) {
+            return;
+        }
 
         // 检查战斗是否结束
         if (this.checkBattleEnd()) {
@@ -435,23 +541,60 @@ class BattleSystem {
      * 玩家交换怪兽
      * @param {Object} monster - 交换的怪兽
      */
-    playerSwitchMonster(monster) {
-        if (!this.waitingForInput || this.state !== BattleState.PLAYER_TURN) {
+    playerSwitchMonster(monster, forced = false) {
+        const canHandleForcedSwitch = forced || this.awaitingForcedSwitch;
+        if (!canHandleForcedSwitch && (!this.waitingForInput || this.state !== BattleState.PLAYER_TURN)) {
+            return;
+        }
+
+        if (!monster || !monster.stats || monster.stats.hp <= 0) {
+            this.addLog('该怪兽无法出战！');
+            this.waitingForInput = true;
+            return;
+        }
+
+        if (monster === this.currentPlayerMonster) {
+            this.addLog('该怪兽已经在场上了！');
+            this.waitingForInput = true;
             return;
         }
 
         this.waitingForInput = false;
 
-        this.addLog(`回来吧，${this.currentPlayerMonster.nickname || this.currentPlayerMonster.name}！`);
+        if (this.currentPlayerMonster && this.currentPlayerMonster.stats.hp > 0) {
+            this.addLog(`回来吧，${this.currentPlayerMonster.nickname || this.currentPlayerMonster.name}！`);
+        }
         this.currentPlayerMonster = monster;
         this.addLog(`去吧！${this.currentPlayerMonster.nickname || this.currentPlayerMonster.name}！`);
 
         eventBus.emit(GameEvents.BATTLE_ACTION, {
             type: 'switch',
-            monster: this.currentPlayerMonster
+            monster: this.currentPlayerMonster,
+            success: true
         });
 
-        // 交换后结束玩家回合
+        if (canHandleForcedSwitch) {
+            const switchMode = this.forcedSwitchMode;
+            this.awaitingForcedSwitch = false;
+            this.forcedSwitchMode = null;
+
+            setTimeout(() => {
+                if (this.checkBattleEnd()) {
+                    return;
+                }
+
+                if (switchMode === 'resume_turn') {
+                    this.state = BattleState.PLAYER_TURN;
+                    this.requestPlayerAction();
+                    return;
+                }
+
+                this.finishTurn();
+            }, 500);
+            return;
+        }
+
+        // 主动交换后结束玩家回合
         setTimeout(() => {
             this.endPlayerTurn(null);
         }, 500);
@@ -808,6 +951,10 @@ class BattleSystem {
         // 检查是否濒死
         this.checkFaint();
 
+        if (this.awaitingForcedSwitch) {
+            return;
+        }
+
         setTimeout(() => {
             this.finishTurn();
             callback && callback();
@@ -856,17 +1003,19 @@ class BattleSystem {
             this.addLog(`${this.currentPlayerMonster.nickname || this.currentPlayerMonster.name}倒下了！`);
 
             // 寻找下一只可用的怪兽
-            const nextMonster = this.playerParty.find(
+            const availableMonsters = this.playerParty.filter(
                 m => m !== this.currentPlayerMonster && m.stats && m.stats.hp > 0
             );
 
-            if (nextMonster) {
+            if (availableMonsters.length > 0) {
                 // 等待玩家选择交换（或者强制交换）
                 this.waitingForInput = true;
+                this.awaitingForcedSwitch = true;
+                this.forcedSwitchMode = this.state === BattleState.PLAYER_TURN ? 'resume_turn' : 'next_turn';
                 eventBus.emit(GameEvents.BATTLE_ACTION, {
                     type: 'need_switch',
                     faintedMonster: this.currentPlayerMonster,
-                    availableMonsters: this.playerParty.filter(m => m.stats && m.stats.hp > 0)
+                    availableMonsters
                 });
             }
         }
@@ -935,11 +1084,26 @@ class BattleSystem {
     endBattle(result) {
         this.state = BattleState.ENDING;
 
+        const gameState = gameStateMachine.getGameState();
+        const defeatedMonsterId = this.lastDefeatedEnemy?.monsterId || this.currentEnemyMonster?.monsterId || this.enemyParty[0]?.monsterId;
+
         const battleResult = {
             result,
+            victory: result === 'victory',
+            monsterId: defeatedMonsterId,
             exp: 0,
+            playerExp: 0,
+            playerLevelUps: [],
             rewards: [],
-            battleLog: [...this.battleLog]
+            battleLog: [...this.battleLog],
+            summary: {
+                result,
+                expGained: 0,
+                moneyGained: 0,
+                items: [],
+                playerLevelDelta: 0,
+                monsterLevelUps: []
+            }
         };
 
         if (result === 'victory') {
@@ -948,17 +1112,77 @@ class BattleSystem {
             // 计算经验值
             const totalExp = this.enemyParty.reduce((sum, m) => sum + (m.expReward || 0), 0);
             battleResult.exp = totalExp;
+            battleResult.summary.expGained = totalExp;
 
             // 分配经验值给参与战斗的怪兽
             const participants = this.playerParty.filter(m => m.stats && m.stats.hp > 0);
             if (participants.length > 0) {
                 const expPerMonster = Math.floor(totalExp / participants.length);
                 participants.forEach(m => {
+                    const fromLevel = m.level;
                     m.exp = (m.exp || 0) + expPerMonster;
                     this.addLog(`${m.nickname || m.name}获得了${expPerMonster}点经验值！`);
                     // 检查升级
                     this.checkLevelUp(m);
+
+                    if (m.level > fromLevel) {
+                        battleResult.summary.monsterLevelUps.push({
+                            monsterId: m.monsterId,
+                            nickname: m.nickname || m.name,
+                            from: fromLevel,
+                            to: m.level
+                        });
+                    }
                 });
+            }
+
+            if (gameState?.player) {
+                const playerLevelBefore = gameState.player.level;
+                const totalPlayerExp = this.enemyParty.reduce((sum, enemy) => {
+                    const enemyExp = enemy.expReward || 0;
+                    const enemyLevel = enemy.level || 1;
+                    return sum + Math.floor(enemyExp * (1 + enemyLevel / 10));
+                }, 0);
+
+                const playerExpResult = awardPlayerExp(gameState.player, totalPlayerExp);
+                battleResult.playerExp = playerExpResult.gained;
+                battleResult.playerLevelUps = playerExpResult.levelsGained;
+                battleResult.summary.playerLevelDelta = gameState.player.level - playerLevelBefore;
+
+                if (playerExpResult.gained > 0) {
+                    this.addLog(`玩家获得了${playerExpResult.gained}点训练家经验！`);
+                }
+
+                playerExpResult.levelsGained.forEach(level => {
+                    this.addLog(`玩家等级提升至 Lv.${level}！`);
+                });
+
+                gameStateMachine.updatePlayer({
+                    level: gameState.player.level,
+                    exp: gameState.player.exp,
+                    expToNext: gameState.player.expToNext,
+                    pokedex: gameState.player.pokedex
+                });
+
+                const moneyGained = this.enemyParty.reduce((sum, enemy) => {
+                    const enemyExp = enemy.expReward || 0;
+                    const enemyLevel = enemy.level || 1;
+                    return sum + Math.max(10, Math.floor(enemyExp * 0.35 + enemyLevel * 8));
+                }, 0);
+
+                if (moneyGained > 0) {
+                    gameState.player.money = (gameState.player.money || 0) + moneyGained;
+                    battleResult.summary.moneyGained = moneyGained;
+                    this.addLog(`获得了￥${moneyGained}！`);
+
+                    gameStateMachine.updatePlayer({
+                        money: gameState.player.money,
+                        level: gameState.player.level,
+                        exp: gameState.player.exp,
+                        expToNext: gameState.player.expToNext,
+                        pokedex: gameState.player.pokedex
+                    });
+                }
             }
 
             // 获取掉落物品
@@ -966,8 +1190,36 @@ class BattleSystem {
                 if (enemy.drops) {
                     enemy.drops.forEach(drop => {
                         if (Math.random() < drop.chance) {
-                            battleResult.rewards.push(drop.itemId);
-                            this.addLog(`获得了${drop.itemId}！`);
+                            if (typeof inventoryManager !== 'undefined' && inventoryManager.addItem) {
+                                const beforeQty = typeof inventoryManager.getItemQuantity === 'function'
+                                    ? inventoryManager.getItemQuantity(drop.itemId)
+                                    : 0;
+                                const added = inventoryManager.addItem(drop.itemId, 1);
+                                const afterQty = typeof inventoryManager.getItemQuantity === 'function'
+                                    ? inventoryManager.getItemQuantity(drop.itemId)
+                                    : beforeQty;
+                                if (added.length > 0 || afterQty > beforeQty) {
+                                    battleResult.rewards.push(drop.itemId);
+                                    battleResult.summary.items.push({
+                                        itemId: drop.itemId,
+                                        quantity: 1,
+                                        sourceMonsterId: enemy.monsterId,
+                                        sourceLevel: enemy.level
+                                    });
+                                    this.addLog(`获得了${ItemTemplates[drop.itemId]?.name || drop.itemId}！`);
+                                } else {
+                                    this.addLog(`背包已满，无法获得${ItemTemplates[drop.itemId]?.name || drop.itemId}！`);
+                                }
+                            } else {
+                                battleResult.rewards.push(drop.itemId);
+                                battleResult.summary.items.push({
+                                    itemId: drop.itemId,
+                                    quantity: 1,
+                                    sourceMonsterId: enemy.monsterId,
+                                    sourceLevel: enemy.level
+                                });
+                                this.addLog(`获得了${ItemTemplates[drop.itemId]?.name || drop.itemId}！`);
+                            }
                         }
                     });
                 }
@@ -981,8 +1233,7 @@ class BattleSystem {
         }
 
         // 战斗结束后恢复部分技能PP（20%）
-        const gameState = gameStateMachine.getGameState();
-        const party = gameState.player?.party || [];
+        const party = gameState?.player?.party || [];
         if (party.length > 0) {
             party.forEach(monster => this.restoreMonsterPPByRate(monster, 0.2));
             this.addLog('战斗结束，技能PP恢复了一部分。');
@@ -991,8 +1242,23 @@ class BattleSystem {
         // 发送战斗结束事件
         eventBus.emit(GameEvents.BATTLE_END, battleResult);
 
+        this.waitingForInput = false;
+        this.inputCallback = null;
+        this.awaitingForcedSwitch = false;
+        this.forcedSwitchMode = null;
+    }
+
+    finalizeBattle() {
+        if (this.state !== BattleState.ENDING) {
+            return;
+        }
+
         // 切换回上一个状态（仅当当前仍为战斗状态时）
         if (gameStateMachine.getCurrentState() === GameState.BATTLE) {
+            gameStateMachine.popState();
+        }
+
+        if (gameStateMachine.getCurrentState() === GameState.PRE_BATTLE_SELECT) {
             gameStateMachine.popState();
         }
 
@@ -1035,15 +1301,28 @@ class BattleSystem {
             const captured = {
                 ...enemy,
                 id: `player_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-                exp: 0
+                nickname: enemy.nickname || enemy.name,
+                exp: 0,
+                expToNext: calculateExpToNext(enemy.level),
+                equipment: createEmptyEquipmentRecord(),
+                status: null
             };
             delete captured.expReward;
             delete captured.drops;
 
             const gameState = gameStateMachine.getGameState();
-            const party = gameState.player?.party ? [...gameState.player.party] : [];
+            if (!gameState?.player) {
+                this.addLog('收服失败：未找到玩家数据');
+                return;
+            }
+
+            const party = gameState.player.party ? [...gameState.player.party] : [];
             party.push(captured);
-            gameStateMachine.updatePlayer({ party });
+            registerMonsterInPokedex(gameState.player, captured.monsterId, 'owned');
+            gameStateMachine.updatePlayer({
+                party,
+                pokedex: gameState.player.pokedex
+            });
 
             eventBus.emit(GameEvents.BATTLE_ACTION, {
                 type: 'catch',
@@ -1187,6 +1466,9 @@ class BattleSystem {
         this.awaitingCaptureChoice = false;
         this.captureAfterVictory = false;
         this.lastDefeatedEnemy = null;
+        this.awaitingForcedSwitch = false;
+        this.forcedSwitchMode = null;
+        this.pendingWildEnemy = null;
     }
 
     /**

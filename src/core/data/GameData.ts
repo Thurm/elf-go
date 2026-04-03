@@ -15,6 +15,97 @@ function createEmptyEquipmentRecord(): Record<EquipmentSlotValue, string | null>
     };
 }
 
+function createEmptyPokedex(): PokedexData {
+    return {
+        seen: [],
+        owned: []
+    };
+}
+
+function calculatePlayerExpToNext(level: number): number {
+    return Math.floor(100 * Math.pow(Math.max(level, 1), 1.35));
+}
+
+function ensurePlayerProgressData(player: PlayerData): PlayerData {
+    if (!player.pokedex) {
+        player.pokedex = createEmptyPokedex();
+    }
+
+    if (!Array.isArray(player.pokedex.seen)) {
+        player.pokedex.seen = [];
+    }
+
+    if (!Array.isArray(player.pokedex.owned)) {
+        player.pokedex.owned = [];
+    }
+
+    if (typeof player.level !== 'number' || player.level < 1) {
+        player.level = 1;
+    }
+
+    if (typeof player.exp !== 'number' || player.exp < 0) {
+        player.exp = 0;
+    }
+
+    if (typeof player.expToNext !== 'number' || player.expToNext <= 0) {
+        player.expToNext = calculatePlayerExpToNext(player.level);
+    }
+
+    return player;
+}
+
+function registerMonsterInPokedex(player: PlayerData, monsterId: string, mode: 'seen' | 'owned' = 'seen'): void {
+    if (!player || !monsterId) {
+        return;
+    }
+
+    ensurePlayerProgressData(player);
+
+    if (!player.pokedex.seen.includes(monsterId)) {
+        player.pokedex.seen.push(monsterId);
+    }
+
+    if (mode === 'owned' && !player.pokedex.owned.includes(monsterId)) {
+        player.pokedex.owned.push(monsterId);
+    }
+}
+
+function getPokedexProgress(player: PlayerData) {
+    ensurePlayerProgressData(player);
+
+    const total = Object.keys(MonsterTemplates || {}).length;
+    return {
+        seen: player.pokedex.seen.length,
+        owned: player.pokedex.owned.length,
+        total
+    };
+}
+
+function awardPlayerExp(player: PlayerData, expGained: number): { gained: number; levelsGained: number[] } {
+    ensurePlayerProgressData(player);
+
+    const safeExp = Math.max(0, Math.floor(expGained || 0));
+    const levelsGained: number[] = [];
+
+    if (safeExp <= 0) {
+        return { gained: 0, levelsGained };
+    }
+
+    player.exp += safeExp;
+
+    while (player.exp >= player.expToNext) {
+        player.exp -= player.expToNext;
+        player.level += 1;
+        levelsGained.push(player.level);
+        player.expToNext = calculatePlayerExpToNext(player.level);
+    }
+
+    return {
+        gained: safeExp,
+        levelsGained
+    };
+}
+
 function calculateMonsterStats(baseStats: BaseStats, level: number): MonsterStats {
     const levelMultiplier = 1 + (level - 1) * 0.1;
     const stats = {
@@ -40,6 +131,7 @@ const GameState = {
     TITLE: 'TITLE',
     MENU: 'MENU',
     MAP: 'MAP',
+    PRE_BATTLE_SELECT: 'PRE_BATTLE_SELECT',
     BATTLE: 'BATTLE',
     DIALOG: 'DIALOG',
     SHOP: 'SHOP',
@@ -73,7 +165,7 @@ function createInitialPlayer(): PlayerData {
         throw new Error('Failed to create initial starter monster: fire_dragon');
     }
 
-    return {
+    const player: PlayerData = {
         name: '玩家',
         party: [starterMonster],
         equipment: createEmptyEquipmentRecord(),
@@ -84,10 +176,17 @@ function createInitialPlayer(): PlayerData {
         inventoryCapacity: 50,
         equipmentStats: {},
         money: 1000,
+        level: 1,
+        exp: 0,
+        expToNext: calculatePlayerExpToNext(1),
+        pokedex: createEmptyPokedex(),
         location: { x: 15, y: 15 },
         quests: [],
         completedQuests: []
     };
+
+    registerMonsterInPokedex(player, starterMonster.monsterId, 'owned');
+    return player;
 }
 
 /**

@@ -377,6 +377,105 @@ const SkillTemplates = {
             duration: 4
         },
         description: '用电磁波麻痹敌人'
+    },
+    volt_tackle: {
+        id: 'volt_tackle',
+        name: '伏特冲撞',
+        type: ElementType.ELECTRIC,
+        category: SkillCategory.PHYSICAL,
+        power: 95,
+        accuracy: 95,
+        pp: 10,
+        maxPp: 10,
+        target: SkillTarget.SINGLE,
+        effect: {
+            type: StatusEffect.PARALYZE,
+            chance: 20,
+            duration: 2
+        },
+        description: '缠绕电流高速撞击敌人'
+    },
+    fire_spin: {
+        id: 'fire_spin',
+        name: '火焰旋涡',
+        type: ElementType.FIRE,
+        category: SkillCategory.SPECIAL,
+        power: 55,
+        accuracy: 90,
+        pp: 15,
+        maxPp: 15,
+        target: SkillTarget.SINGLE,
+        effect: {
+            type: StatusEffect.BURN,
+            chance: 20,
+            duration: 2
+        },
+        description: '用旋转火焰持续灼烧敌人'
+    },
+    bubblebeam: {
+        id: 'bubblebeam',
+        name: '泡沫光线',
+        type: ElementType.WATER,
+        category: SkillCategory.SPECIAL,
+        power: 65,
+        accuracy: 100,
+        pp: 20,
+        maxPp: 20,
+        target: SkillTarget.SINGLE,
+        effect: null,
+        description: '喷出高压泡沫束冲击敌人'
+    },
+    rock_throw: {
+        id: 'rock_throw',
+        name: '落石',
+        type: ElementType.NORMAL,
+        category: SkillCategory.PHYSICAL,
+        power: 60,
+        accuracy: 95,
+        pp: 20,
+        maxPp: 20,
+        target: SkillTarget.SINGLE,
+        effect: null,
+        description: '投掷岩石砸向敌人'
+    },
+    earthquake: {
+        id: 'earthquake',
+        name: '地震',
+        type: ElementType.NORMAL,
+        category: SkillCategory.PHYSICAL,
+        power: 100,
+        accuracy: 100,
+        pp: 10,
+        maxPp: 10,
+        target: SkillTarget.SINGLE,
+        effect: null,
+        description: '猛烈震动地面造成巨大伤害'
+    },
+    scratch: {
+        id: 'scratch',
+        name: '抓击',
+        type: ElementType.NORMAL,
+        category: SkillCategory.PHYSICAL,
+        power: 45,
+        accuracy: 100,
+        pp: 30,
+        maxPp: 30,
+        target: SkillTarget.SINGLE,
+        effect: null,
+        description: '用利爪快速抓伤敌人'
+    },
+    night_shade: {
+        id: 'night_shade',
+        name: '暗影袭击',
+        type: ElementType.NORMAL,
+        category: SkillCategory.SPECIAL,
+        power: 70,
+        accuracy: 100,
+        pp: 15,
+        maxPp: 15,
+        target: SkillTarget.SINGLE,
+        effect: null,
+        description: '以暗影之力侵袭敌人的心神'
     }
 } satisfies Record<string, SkillTemplate>;
 

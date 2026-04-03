@@ -90,6 +90,33 @@ python3 -m http.server 8080
 npm run test:e2e
 ```
 
+### 地图统一转场策略
+
+地图切换现在统一走 `src/map/MapRenderer.ts` 中的 `MapTransitionPreset` + `_resolveTransitionProfile()`，不要再为单张地图硬编码独立转场链路。
+
+**当前公共策略**:
+
+| 策略 | 适用场景 | 默认行为 |
+|------|----------|----------|
+| `default_overworld` | 同区域普通室外切换 | `fade -> fade` |
+| `enter_interior` | 室外进入室内 | `fade -> fade`，退场更快 |
+| `exit_interior` | 室内回到室外 | `fade -> fade`，入场略慢 |
+| `cross_region` | 跨区域切换（如 `route -> village`） | `fade -> fade`，节奏更完整 |
+
+**新地图接入规则**:
+
+- 在 `MapVisualThemes` 中优先配置 `spaceType`：`indoor` / `outdoor`
+- 在 `MapVisualThemes` 中优先配置 `regionType`：如 `village` / `route` / `forest` / `cave`
+- 若不需要特殊处理，依赖 `_resolveTransitionProfile()` 自动命中公共策略
+- 仅当某张地图确实需要特殊转场时，再显式配置 `transitionProfile`
+- 禁止在 `MapSystem`、`SceneManager`、`PlayerController` 中为单图新增一次性转场分支
+
+**实现约束**:
+
+- 切图顺序必须保持：`退场完成 -> 提交新地图/落位 -> 入场完成`
+- 转场结束后镜头必须 `snap` 到目标落点，避免“人物已切图但镜头还在追”
+- 新增或调整转场逻辑后，至少回归 `docs/tests/ui-map-camera-transition.spec.ts`
+
 **变更-测试映射**:
 
 | 变更模块 | 需要运行的测试用例 |
@@ -100,6 +127,8 @@ npm run test:e2e
 | 战斗系统 | TC-013 ~ TC-018 |
 | 地图系统 | TC-003, TC-011, TC-012 |
 | 全量回归 | 全部 18 个用例 |
+
+**地图转场专项**: `docs/tests/ui-map-camera-transition.spec.ts`
 
 **测试优先级**: test.html 必须 0 失败 → 模块对应用例通过 → 核心回归流程 (TC-012, TC-018) 闭环
 

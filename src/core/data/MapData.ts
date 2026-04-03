@@ -34,9 +34,12 @@ const MapTemplates = {
             { id: 'pokemart_town01', x: 21, y: 13 }
         ],
         encounter: {
-            enabled: false,
-            rate: 0,
-            monsters: []
+            enabled: true,
+            rate: 0.04,
+            monsters: [
+                { monsterId: 'electric_mouse', minLevel: 2, maxLevel: 4, weight: 55 },
+                { monsterId: 'fire_fox', minLevel: 2, maxLevel: 4, weight: 45 }
+            ]
         }
     },
     route_01: {
@@ -52,7 +55,8 @@ const MapTemplates = {
         ],
         npcs: [],
         portals: [
-            { x: 31, y: 15, targetMap: 'town_01', targetX: 1, targetY: 15 }
+            { x: 31, y: 15, targetMap: 'town_01', targetX: 1, targetY: 15 },
+            { x: 0, y: 15, targetMap: 'route_02', targetX: 30, targetY: 15 }
         ],
         shops: [],
         encounter: {
@@ -61,7 +65,34 @@ const MapTemplates = {
             monsters: [
                 { monsterId: 'grass_bunny', minLevel: 2, maxLevel: 5, weight: 50 },
                 { monsterId: 'water_turtle', minLevel: 3, maxLevel: 6, weight: 30 },
-                { monsterId: 'fire_dragon', minLevel: 4, maxLevel: 7, weight: 20 }
+                { monsterId: 'water_fish', minLevel: 4, maxLevel: 7, weight: 20 },
+                { monsterId: 'rock_snake', minLevel: 5, maxLevel: 8, weight: 15 }
+            ]
+        }
+    },
+    route_02: {
+        id: 'route_02',
+        name: '2号道路',
+        width: 32,
+        height: 32,
+        tileset: 'route',
+        layers: [
+            { name: MapLayerType.GROUND, data: [] },
+            { name: MapLayerType.OBJECTS, data: [] },
+            { name: MapLayerType.COLLISION, data: [] }
+        ],
+        npcs: [],
+        portals: [
+            { x: 31, y: 15, targetMap: 'route_01', targetX: 1, targetY: 15 }
+        ],
+        shops: [],
+        encounter: {
+            enabled: true,
+            rate: 0.18,
+            monsters: [
+                { monsterId: 'rock_snake', minLevel: 6, maxLevel: 9, weight: 35 },
+                { monsterId: 'water_fish', minLevel: 5, maxLevel: 8, weight: 25 },
+                { monsterId: 'dark_cat', minLevel: 7, maxLevel: 10, weight: 40 }
             ]
         }
     },
